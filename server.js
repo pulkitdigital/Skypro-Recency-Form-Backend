@@ -254,4 +254,4 @@ app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`📁 Upload directory: ${uploadDir}`);
   console.log(`🔐 reCAPTCHA enabled: ${process.env.RECAPTCHA_SECRET_KEY ? 'YES' : 'NO'}`);
-});
+});i 
