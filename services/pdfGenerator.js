@@ -130,9 +130,8 @@ async function generatePDF(formData, uploadedFiles = []) {
             .fillColor("#1a1a1a")
             .text(value || "N/A", 240, yPosition, { width: 295 });
 
-          yPosition += 22;
+          yPosition += label === "Total PIC Cross-Country Experience" ? 32 : 22;
         });
-
         yPosition += 15;
       }
 
@@ -141,7 +140,7 @@ async function generatePDF(formData, uploadedFiles = []) {
         const examNames = {
           airNavigation: "Air Navigation",
           meteorology: "Meteorology",
-          regulations: "Regulations",
+          airRegulations: "Air Regulations",
           technicalGeneral: "Technical General",
           technicalSpecific: "Technical Specific",
           compositePaper: "Composite Paper",
@@ -418,7 +417,9 @@ async function generatePDF(formData, uploadedFiles = []) {
         const sortieRows = formData.sortieRows || [];
         let totalDayPIC = 0,
           totalNightPIC = 0,
-          totalIF = 0;
+          totalIF = 0,
+          totalNightPICLDG = 0,
+          totalNightPICTO = 0;
 
         sortieRows.forEach((row, index) => {
           if (yPosition > 720) {
@@ -543,7 +544,11 @@ async function generatePDF(formData, uploadedFiles = []) {
           const totalTime = hours + minutes / 60;
 
           if (row.typeOfFlight === "Day PIC") totalDayPIC += totalTime;
-          if (row.typeOfFlight === "Night PIC") totalNightPIC += totalTime;
+          if (row.typeOfFlight === "Night PIC") {
+            totalNightPIC += totalTime;
+            totalNightPICLDG += parseInt(row.ldg) || 0;
+            totalNightPICTO += parseInt(row.to) || 0;
+          }
           if (row.typeOfFlight === "IF") totalIF += totalTime;
         });
 
@@ -556,7 +561,7 @@ async function generatePDF(formData, uploadedFiles = []) {
           yPosition = 100;
         }
 
-        doc.rect(50, yPosition, 495, 70).fillAndStroke("#eff6ff", "#2563eb");
+         doc.rect(50, yPosition, 495, 60).fillAndStroke("#eff6ff", "#2563eb");
 
         doc
           .fontSize(11)
@@ -566,7 +571,7 @@ async function generatePDF(formData, uploadedFiles = []) {
 
         yPosition += 30;
 
-        doc.fontSize(10).fillColor("#1a1a1a").font("Helvetica");
+        doc.fontSize(9).fillColor("#1a1a1a").font("Helvetica");
 
         const dayPICHours = Math.floor(totalDayPIC);
         const dayPICMins = Math.round((totalDayPIC % 1) * 60);
@@ -576,13 +581,22 @@ async function generatePDF(formData, uploadedFiles = []) {
         const ifMins = Math.round((totalIF % 1) * 60);
 
         doc.text(
-          `Total Day PIC: ${dayPICHours}h ${dayPICMins}m  |  Total Night PIC: ${nightPICHours}h ${nightPICMins}m  |  Total IF: ${ifHours}h ${ifMins}m`,
+          `Total Day PIC: ${dayPICHours}h ${dayPICMins}m  |  Total Night PIC: ${nightPICHours}h ${nightPICMins}m  |  Total Night PIC LDG: ${totalNightPICLDG} | Total Night PIC TO: ${totalNightPICTO}`,
           60,
           yPosition,
-          { width: 475 },
+          { width: 475 }
         );
 
-        yPosition += 70;
+        yPosition += 12;
+
+        doc.text(
+          ` Total IF: ${ifHours}h ${ifMins}m`,
+          60,
+          yPosition,
+          { width: 475 }
+        );
+
+        yPosition += 55;
 
         // IR Check
         if (formData.irCheckAircraft) {
@@ -653,22 +667,33 @@ async function generatePDF(formData, uploadedFiles = []) {
       addSection("5. COMMERCIAL CHECKRIDE", checkrideFields);
 
       // 6. PIC Experience
+
       const picFields = [
         ["Total PIC Experience", `${formData.totalPICExperience || 0} hours`],
-        ["Total PIC Cross-country", `${formData.totalPICXC || 0} hours`],
-        ["Total Instrument Time", `${formData.totalInstrumentTime || 0} hours`],
       ];
 
-      // Add "Attached" status for PIC-related documents
       if (isFileUploaded("pic100Statement")) {
         picFields.push(["100 hrs PIC Statement", "Attached"]);
       }
-      if (isFileUploaded("xc300Statement")) {
-        picFields.push(["300 nm XC Statement", "Attached"]);
+
+      if (isFileUploaded("crossCountry300Statement")) {
+        picFields.push(["300 nm Cross-Country Statement", "Attached"]);
       }
-      if (isFileUploaded("picXCStatement")) {
-        picFields.push(["Total PIC XC Statement", "Attached"]);
+
+      picFields.push([
+        "Total PIC Cross-Country Experience",
+        `${formData.totalPICCrossCountry || 0} hours`,
+      ]);
+
+      if (isFileUploaded("picCrossCountryStatement")) {
+        picFields.push(["Total PIC Cross-Country Statement", "Attached"]);
       }
+
+      picFields.push([
+        "Total Instrument Time",
+        `${formData.totalInstrumentTime || 0} hours`,
+      ]);
+
       if (isFileUploaded("instrumentTimeStatement")) {
         picFields.push(["Instrument Time Statement", "Attached"]);
       }
@@ -704,10 +729,10 @@ async function generatePDF(formData, uploadedFiles = []) {
         // Table headers
         const examTableTop = yPosition;
         const examColWidths = {
-          exam: 150,
-          resultDate: 120,
-          validity: 150,
-          attached: 75,
+          exam: 190, // Even more space
+          resultDate: 135,
+          validity: 100,
+          attached: 70,
         };
 
         let examXPos = 50;
@@ -781,26 +806,52 @@ async function generatePDF(formData, uploadedFiles = []) {
           examXPos += examColWidths.resultDate;
 
           // Validity
-          const validityColor =
-            exam.validity === "OUT OF RECENCY" ? "#dc2626" : "#1a1a1a";
-          doc
-            .fillColor(validityColor)
-            .font(
-              exam.validity === "OUT OF RECENCY"
-                ? "Helvetica-Bold"
-                : "Helvetica",
-            );
+          // const validityColor =
+          //   exam.validity === "OUT OF RECENCY" ? "#dc2626" : "#1a1a1a";
+          // doc
+          //   .fillColor(validityColor)
+          //   .font(
+          //     exam.validity === "OUT OF RECENCY"
+          //       ? "Helvetica-Bold"
+          //       : "Helvetica",
+          //   );
 
-          // Handle "OUT OF RECENCY" text - single line with proper case
-          if (exam.validity === "OUT OF RECENCY") {
-            doc
-              .fontSize(7)
-              .text("Out of Recency", examXPos + 2, yPosition + 5, {
-                width: examColWidths.validity - 4,
-              });
+          // // Handle "OUT OF RECENCY" text - single line with proper case
+          // if (exam.validity === "OUT OF RECENCY") {
+          //   doc
+          //     .fontSize(7)
+          //     .text("Out of Recency", examXPos + 2, yPosition + 5, {
+          //       width: examColWidths.validity - 4,
+          //     });
+          //   doc.fontSize(8); // Reset font size
+          // } else {
+          //   doc.text(exam.validity || "-", examXPos + 2, yPosition + 5, {
+          //     width: examColWidths.validity - 4,
+          //   });
+          // }
+
+          let validityColor = "#1a1a1a";
+          let validityFont = "Helvetica";
+          let validityText = exam.validity || "-";
+
+          if (exam.validity === "Expired") {
+            validityColor = "#dc2626";
+            validityFont = "Helvetica-Bold";
+          } else if (exam.validity === "SPL Exam Required") {
+            validityColor = "#f59e0b";
+            validityFont = "Helvetica-Bold";
+          }
+
+          doc.fillColor(validityColor).font(validityFont);
+
+          // Adjust font size for longer text
+          if (exam.validity === "SPL Exam Required") {
+            doc.fontSize(7).text(validityText, examXPos + 2, yPosition + 5, {
+              width: examColWidths.validity - 4,
+            });
             doc.fontSize(8); // Reset font size
           } else {
-            doc.text(exam.validity || "-", examXPos + 2, yPosition + 5, {
+            doc.text(validityText, examXPos + 2, yPosition + 5, {
               width: examColWidths.validity - 4,
             });
           }

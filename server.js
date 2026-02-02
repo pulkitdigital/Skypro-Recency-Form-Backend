@@ -43,8 +43,8 @@ const fields = [
   { name: "c172CheckrideStatement", maxCount: 1 },
   { name: "c172FlightReview", maxCount: 1 },
   { name: "pic100Statement", maxCount: 1 },
-  { name: "xc300Statement", maxCount: 1 },
-  { name: "picXCStatement", maxCount: 1 },
+  { name: "crossCountry300Statement", maxCount: 1 }, // Updated from xc300Statement
+  { name: "picCrossCountryStatement", maxCount: 1 }, // Updated from picXCStatement
   { name: "instrumentTimeStatement", maxCount: 1 },
   { name: "medicalAssessment", maxCount: 1 },
   { name: "rtr", maxCount: 1 },
@@ -61,7 +61,7 @@ const fields = [
 for (let i = 0; i < 10; i++) {
   fields.push({ name: `dgcaExam_airNavigation`, maxCount: 1 });
   fields.push({ name: `dgcaExam_meteorology`, maxCount: 1 });
-  fields.push({ name: `dgcaExam_regulations`, maxCount: 1 });
+  fields.push({ name: `dgcaExam_airRegulations`, maxCount: 1 });
   fields.push({ name: `dgcaExam_technicalGeneral`, maxCount: 1 });
   fields.push({ name: `dgcaExam_technicalSpecific`, maxCount: 1 });
   fields.push({ name: `dgcaExam_compositePaper`, maxCount: 1 });

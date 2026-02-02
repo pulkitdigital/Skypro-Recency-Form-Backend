@@ -112,25 +112,41 @@ async function processJob(jobData) {
         ? "Attached" 
         : "Not Attached"; 
   
-    // Calculate sortie summary
+    // Calculate sortie summary with Night PIC LDG/TO
     let totalDayPIC = 0, totalNightPIC = 0, totalIF = 0;
+    let totalNightPICLDG = 0, totalNightPICTO = 0;
+    
     if (formData.sortieRows && formData.sortieRows.length > 0) {
       formData.sortieRows.forEach(row => {
         const hours = parseInt(row.hours) || 0;
         const minutes = parseInt(row.minutes) || 0;
         const totalTime = hours + minutes / 60;
         
-        if (row.typeOfFlight === "Day PIC") totalDayPIC += totalTime;
-        if (row.typeOfFlight === "Night PIC") totalNightPIC += totalTime;
-        if (row.typeOfFlight === "IF") totalIF += totalTime;
+        if (row.typeOfFlight === "Day PIC") {
+          totalDayPIC += totalTime;
+        }
+        if (row.typeOfFlight === "Night PIC") {
+          totalNightPIC += totalTime;
+          totalNightPICLDG += parseInt(row.ldg) || 0;
+          totalNightPICTO += parseInt(row.to) || 0;
+        }
+        if (row.typeOfFlight === "IF") {
+          totalIF += totalTime;
+        }
       });
     }
 
-    // Format DGCA exams
+    // Format DGCA exams with validity status (Expired, SPL Exam Required, or valid date)
     const dgcaExamsList = formData.dgcaExamDetails && formData.dgcaExamDetails.length > 0
-      ? formData.dgcaExamDetails.map(exam => 
-          `${exam.exam}: ${exam.resultDate} (Valid: ${exam.validity})`
-        ).join("; ")
+      ? formData.dgcaExamDetails.map(exam => {
+          const examName = exam.exam.replace(/([A-Z])/g, ' $1').trim();
+          const status = exam.validity === "Expired" 
+            ? "❌ EXPIRED" 
+            : exam.validity === "SPL Exam Required"
+            ? "⚠️ SPL EXAM REQUIRED"
+            : `✅ Valid until ${exam.validity}`;
+          return `${examName}: ${exam.resultDate} - ${status}`;
+        }).join("; ")
       : "None";
 
     const sheetRow = [ 
@@ -160,6 +176,8 @@ async function processJob(jobData) {
       formData.sortieRows?.length || 0,
       `${Math.floor(totalDayPIC)}h ${Math.round((totalDayPIC % 1) * 60)}m`,
       `${Math.floor(totalNightPIC)}h ${Math.round((totalNightPIC % 1) * 60)}m`,
+      totalNightPICLDG, // New: Total Night PIC LDG
+      totalNightPICTO,  // New: Total Night PIC TO
       `${Math.floor(totalIF)}h ${Math.round((totalIF % 1) * 60)}m`,
   
       // IR Check
@@ -179,12 +197,12 @@ async function processJob(jobData) {
   
       // PIC Experience
       `${formData.totalPICExperience || 0} hrs`,
-      `${formData.totalPICXC || 0} hrs`,
+      `${formData.totalPICCrossCountry || 0} hrs`, // Updated from totalPICXC
       `${formData.totalInstrumentTime || 0} hrs`,
   
       // Medical & Exams
       formData.medicalValidity || "",
-      dgcaExamsList,
+      dgcaExamsList, // Now includes Expired/SPL Exam Required status
   
       // Additional Documents
       formData.rtrValidity || "",
@@ -202,8 +220,8 @@ async function processJob(jobData) {
       fileStatus("c172CheckrideStatement"),
       fileStatus("c172FlightReview"),
       fileStatus("pic100Statement"),
-      fileStatus("xc300Statement"),
-      fileStatus("picXCStatement"),
+      fileStatus("crossCountry300Statement"), // Updated from xc300Statement
+      fileStatus("picCrossCountryStatement"), // Updated from picXCStatement
       fileStatus("instrumentTimeStatement"),
       fileStatus("medicalAssessment"),
       fileStatus("rtr"),
