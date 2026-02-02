@@ -130,13 +130,12 @@ app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
 
     console.log("✅ reCAPTCHA verification successful");
 
-    // Process form data
+    // Rest of your processing logic...
     const formData = {
       ...req.body,
       submittedAt: new Date().toISOString(),
     };
 
-    // Remove recaptchaToken from formData before processing
     delete formData.recaptchaToken;
 
     // Parse JSON fields
@@ -152,57 +151,9 @@ app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
       formData.dgcaExamDetails = JSON.parse(formData.dgcaExamDetails);
     }
 
-    if (!formData.fullName) {
-      return res.status(400).json({ error: "Full name required" });
-    }
-
-    // Collect uploaded files
     const uploadedFiles = Object.values(req.files || {}).flat();
 
-    console.log("📝 Form data received:", {
-      fullName: formData.fullName,
-      email: formData.email,
-      contractingState: formData.contractingState,
-      filesCount: uploadedFiles.length,
-      sortieRowsCount: formData.sortieRows?.length || 0,
-      dgcaExamsCount: formData.dgcaExamDetails?.length || 0
-    });
-
-    // Validate required files
-    const requiredFiles = [
-      'passportPhoto',
-      'foreignLicense',
-      'studentSignature',
-      'finalSignature'
-    ];
-
-    // Check conditional required files
-    if (formData.last6MonthsAvailable === "Yes") {
-      requiredFiles.push('ca40IR');
-      if (formData.signalReception === "Yes") {
-        requiredFiles.push('signalReceptionTest');
-      }
-    }
-
-    if (formData.commercialCheckride === "C172") {
-      requiredFiles.push('c172CheckrideStatement');
-    } else if (formData.c172PICOption === "flightReview") {
-      requiredFiles.push('c172FlightReview');
-    }
-
-    if (formData.nameChangeProcessed === "Yes") {
-      requiredFiles.push('nameChangeCertificate');
-    }
-
-    const missingFiles = requiredFiles.filter(fieldName => 
-      !uploadedFiles.some(f => f.fieldname === fieldName)
-    );
-
-    if (missingFiles.length > 0) {
-      console.warn("⚠️ Missing required files:", missingFiles);
-    }
-
-    // Add job to queue (non-blocking)
+    // Add job to queue
     const jobId = addJob({
       formData,
       uploadedFiles,
@@ -211,17 +162,18 @@ app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
 
     console.log("✅ Job added to queue:", jobId);
 
-    // INSTANT RESPONSE
+    // Return success response
     res.json({
       success: true,
       message: "Form submitted successfully! Processing in background.",
       jobId: jobId,
-      info: "You will receive a confirmation email shortly.",
     });
 
   } catch (err) {
     console.error("❌ ERROR:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ 
+      error: err.message || "An error occurred during submission" 
+    });
   }
 });
 
