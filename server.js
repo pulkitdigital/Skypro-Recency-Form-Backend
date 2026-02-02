@@ -4,6 +4,7 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const axios = require("axios");
 
 // Services
 const { addJob, getQueueStatus } = require("./services/queueService");
@@ -43,8 +44,8 @@ const fields = [
   { name: "c172CheckrideStatement", maxCount: 1 },
   { name: "c172FlightReview", maxCount: 1 },
   { name: "pic100Statement", maxCount: 1 },
-  { name: "crossCountry300Statement", maxCount: 1 }, // Updated from xc300Statement
-  { name: "picCrossCountryStatement", maxCount: 1 }, // Updated from picXCStatement
+  { name: "crossCountry300Statement", maxCount: 1 },
+  { name: "picCrossCountryStatement", maxCount: 1 },
   { name: "instrumentTimeStatement", maxCount: 1 },
   { name: "medicalAssessment", maxCount: 1 },
   { name: "rtr", maxCount: 1 },
@@ -68,17 +69,75 @@ for (let i = 0; i < 10; i++) {
 }
 
 /* ===============================
+   RECAPTCHA VERIFICATION FUNCTION
+================================ */
+async function verifyRecaptcha(token) {
+  try {
+    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    
+    if (!secretKey) {
+      console.error("❌ RECAPTCHA_SECRET_KEY not found in environment variables");
+      return false;
+    }
+
+    const response = await axios.post(
+      "https://www.google.com/recaptcha/api/siteverify",
+      null,
+      {
+        params: {
+          secret: secretKey,
+          response: token,
+        },
+      }
+    );
+
+    console.log("🔐 reCAPTCHA verification response:", response.data);
+
+    return response.data.success;
+  } catch (error) {
+    console.error("❌ reCAPTCHA verification error:", error.message);
+    return false;
+  }
+}
+
+/* ===============================
    SUBMIT ENDPOINT
 ================================ */
 app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
   try {
     console.log("📥 Received conversion form submission");
 
+    // Extract reCAPTCHA token
+    const recaptchaToken = req.body.recaptchaToken;
+
+    if (!recaptchaToken) {
+      console.warn("⚠️ No reCAPTCHA token provided");
+      return res.status(400).json({ 
+        error: "reCAPTCHA verification required. Please complete the captcha." 
+      });
+    }
+
+    // Verify reCAPTCHA
+    console.log("🔐 Verifying reCAPTCHA...");
+    const isValidRecaptcha = await verifyRecaptcha(recaptchaToken);
+
+    if (!isValidRecaptcha) {
+      console.warn("⚠️ reCAPTCHA verification failed");
+      return res.status(400).json({ 
+        error: "reCAPTCHA verification failed. Please try again." 
+      });
+    }
+
+    console.log("✅ reCAPTCHA verification successful");
+
     // Process form data
     const formData = {
       ...req.body,
       submittedAt: new Date().toISOString(),
     };
+
+    // Remove recaptchaToken from formData before processing
+    delete formData.recaptchaToken;
 
     // Parse JSON fields
     if (formData.dgcaExams && typeof formData.dgcaExams === 'string') {
@@ -194,4 +253,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`📁 Upload directory: ${uploadDir}`);
+  console.log(`🔐 reCAPTCHA enabled: ${process.env.RECAPTCHA_SECRET_KEY ? 'YES' : 'NO'}`);
 });
