@@ -1,164 +1,8 @@
-// // services/queueService.js
- 
-// const generatePDF = require("./pdfGenerator"); 
-// const sendAdminEmail = require("./emailService"); 
-// const { appendAdmissionRow } = require("./googleService"); 
- 
-// const path = require("path"); 
-// const fs = require("fs"); 
- 
-// // ---------------- QUEUE ---------------- 
- 
-// const jobQueue = []; 
-// let isProcessing = false; 
- 
-// function addJob(jobData) { 
-//   const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`; 
- 
-//   jobQueue.push({ 
-//     id: jobId, 
-//     data: jobData, 
-//     status: "pending", 
-//     createdAt: new Date(), 
-//   }); 
- 
-//   console.log(`✅ Job added: ${jobId}`); 
- 
-//   if (!isProcessing) processQueue(); 
- 
-//   return jobId; 
-// } 
- 
-// async function processQueue() { 
-//   if (isProcessing || jobQueue.length === 0) return; 
- 
-//   isProcessing = true; 
- 
-//   while (jobQueue.length) { 
-//     const job = jobQueue.shift(); 
- 
-//     try { 
-//       console.log(`🔄 Processing ${job.id}`); 
-//       job.status = "processing"; 
- 
-//       await processJob(job.data); 
- 
-//       job.status = "completed"; 
-//       console.log(`✅ Completed ${job.id}`); 
-//     } catch (err) { 
-//       job.status = "failed"; 
-//       job.error = err.message; 
-//       console.error(`❌ Failed ${job.id}`, err); 
-//     } 
-//   } 
- 
-//   isProcessing = false; 
-// } 
- 
-// // ---------------- CORE JOB ---------------- 
- 
-// async function processJob(jobData) { 
-//   const { formData, uploadedFiles, uploadDir } = jobData; 
- 
-//   // 1️⃣ Generate Single Combined PDF (Form + Documents, excluding photo) 
-//   console.log("📄 Generating combined PDF (Form + Documents)..."); 
-//   const combinedPdfPath = await generatePDF(formData, uploadedFiles); 
- 
-//   // 2️⃣ Send admin email with single PDF 
-//   console.log("📧 Sending email..."); 
-//   await sendAdminEmail({ 
-//     formData, 
-//     pdfPath: combinedPdfPath, 
-//     uploadedFiles: [], // No separate attachments needed 
-//   }); 
- 
-//   // 3️⃣ Push data to Google Sheet 
-//   console.log("📊 Writing to Google Sheet..."); 
- 
-//   const fileStatus = (name) => 
-//     uploadedFiles.some((f) => f.fieldname === name) 
-//       ? "Attached" 
-//       : "Not Attached"; 
- 
-//   const sheetRow = [ 
-//     new Date().toLocaleString(), 
- 
-//     formData.fullName || "", 
-//     formData.dob || "", 
-//     formData.gender || "", 
-//     formData.mobile || "", 
-//     formData.email || "", 
-//     formData.permanentAddress || "", 
-//     formData.currentAddress || "", 
-//     formData.dgca || "", 
-//     formData.egca || "", 
-//     formData.medical || "", 
- 
-//     formData.parentName || "", 
-//     formData.relationship || "", 
-//     formData.parentMobile || "", 
-//     formData.occupation || "", 
- 
-//     formData.school || "", 
-//     formData.classYear || "", 
-//     formData.board || "", 
-//     formData.course || "",
-//     formData.modeOfClass || "", 
- 
-//     formData.feesPaid || "", 
-//     formData.paymentMode || "", 
-//     formData.installment || "", 
- 
-//     fileStatus("addressProof"), 
-//     fileStatus("photo"), 
-//     fileStatus("marksheet10"), 
-//     fileStatus("marksheet12"), 
-//     fileStatus("aadhar"), 
-//   ]; 
- 
-//   await appendAdmissionRow(sheetRow); 
- 
-//   console.log("🎉 Job finished successfully"); 
-// } 
- 
-// // ---------------- OPTIONAL CLEANUP ---------------- 
- 
-// function cleanupFiles(filePaths) { 
-//   filePaths.forEach((p) => { 
-//     if (p && fs.existsSync(p)) { 
-//       try { 
-//         fs.unlinkSync(p); 
-//         console.log(`🗑️ Deleted ${p}`); 
-//       } catch (e) { 
-//         console.error(`⚠️ Cleanup failed ${p}`, e); 
-//       } 
-//     } 
-//   }); 
-// } 
- 
-// function getQueueStatus() { 
-//   return { 
-//     pending: jobQueue.length, 
-//     isProcessing, 
-//   }; 
-// } 
- 
-// module.exports = { 
-//   addJob, 
-//   getQueueStatus, 
-// };
-
-
-
-
-
-
-
-// services/queueService.js
+// Backend/services/queueService.js
  
 const generatePDF = require("./pdfGenerator"); 
 const sendAdminEmail = require("./emailService"); 
-const { appendAdmissionRow } = require("./googleService"); 
+const { appendConversionRow } = require("./googleService"); 
  
 const fs = require("fs"); 
  
@@ -175,7 +19,7 @@ function addJob(jobData) {
     data: jobData, 
     status: "pending", 
     createdAt: new Date(),
-    attempts: 0, // Track retry attempts
+    attempts: 0,
   }); 
  
   console.log(`✅ Job added: ${jobId}`); 
@@ -191,44 +35,39 @@ async function processQueue() {
   isProcessing = true; 
  
   while (jobQueue.length) { 
-    const job = jobQueue[0]; // Don't shift yet - in case we need to retry
+    const job = jobQueue[0];
  
     try { 
       console.log(`🔄 Processing ${job.id} (Attempt ${job.attempts + 1})`); 
       job.status = "processing"; 
       job.attempts++;
  
-      // ✅ NO TIMEOUT - Process until complete
       await processJob(job.data); 
  
       job.status = "completed"; 
       console.log(`✅ Completed ${job.id}`); 
       
-      jobQueue.shift(); // Remove successful job
+      jobQueue.shift();
       
     } catch (err) { 
       console.error(`❌ Failed ${job.id} (Attempt ${job.attempts}):`, err.message); 
       
-      // ✅ RETRY LOGIC - Max 3 attempts
       if (job.attempts < 3) {
         job.status = "retrying";
         console.log(`🔄 Will retry ${job.id} (${3 - job.attempts} attempts remaining)`);
         
-        // Move to end of queue for retry
         jobQueue.push(jobQueue.shift());
         
-        // Wait before next attempt (exponential backoff)
-        const waitTime = job.attempts * 5000; // 5s, 10s, 15s
+        const waitTime = job.attempts * 5000;
         console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         
       } else {
-        // Permanent failure after 3 attempts
         job.status = "failed"; 
         job.error = err.message; 
         console.error(`💀 Job ${job.id} failed permanently after 3 attempts`);
         
-        jobQueue.shift(); // Remove failed job
+        jobQueue.shift();
       }
     } 
   } 
@@ -245,7 +84,7 @@ async function processJob(jobData) {
   let combinedPdfPath = null;
   
   try {
-    // 1️⃣ Generate Single Combined PDF (Form + Documents, excluding photo) 
+    // 1️⃣ Generate Combined PDF
     console.log("📄 Generating combined PDF (Form + Documents)..."); 
     combinedPdfPath = await generatePDF(formData, uploadedFiles); 
     
@@ -255,17 +94,17 @@ async function processJob(jobData) {
     
     console.log(`✅ PDF created: ${combinedPdfPath}`);
   
-    // 2️⃣ Send admin email with single PDF 
+    // 2️⃣ Send emails
     console.log("📧 Sending emails..."); 
     await sendAdminEmail({ 
       formData, 
       pdfPath: combinedPdfPath, 
-      uploadedFiles: [], // No separate attachments needed 
+      uploadedFiles: [],
     }); 
     
     console.log("✅ Emails sent successfully");
   
-    // 3️⃣ Push data to Google Sheet 
+    // 3️⃣ Push data to Google Sheet
     console.log("📊 Writing to Google Sheet..."); 
   
     const fileStatus = (name) => 
@@ -273,60 +112,126 @@ async function processJob(jobData) {
         ? "Attached" 
         : "Not Attached"; 
   
+    // Calculate sortie summary
+    let totalDayPIC = 0, totalNightPIC = 0, totalIF = 0;
+    if (formData.sortieRows && formData.sortieRows.length > 0) {
+      formData.sortieRows.forEach(row => {
+        const hours = parseInt(row.hours) || 0;
+        const minutes = parseInt(row.minutes) || 0;
+        const totalTime = hours + minutes / 60;
+        
+        if (row.typeOfFlight === "Day PIC") totalDayPIC += totalTime;
+        if (row.typeOfFlight === "Night PIC") totalNightPIC += totalTime;
+        if (row.typeOfFlight === "IF") totalIF += totalTime;
+      });
+    }
+
+    // Format DGCA exams
+    const dgcaExamsList = formData.dgcaExamDetails && formData.dgcaExamDetails.length > 0
+      ? formData.dgcaExamDetails.map(exam => 
+          `${exam.exam}: ${exam.resultDate} (Valid: ${exam.validity})`
+        ).join("; ")
+      : "None";
+
     const sheetRow = [ 
-      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }), 
+      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }), // Timestamp
   
+      // Personal Details
       formData.fullName || "", 
-      formData.dob || "", 
+      formData.age || "", 
       formData.gender || "", 
       formData.mobile || "", 
       formData.email || "", 
-      formData.permanentAddress || "", 
-      formData.currentAddress || "", 
-      formData.dgca || "", 
-      formData.egca || "", 
-      formData.medical || "", 
   
-      formData.parentName || "", 
-      formData.relationship || "", 
-      formData.parentMobile || "", 
-      formData.occupation || "", 
+      // License Details
+      formData.contractingState || "", 
+      formData.licenseValidity || "", 
+      formData.licenseEndorsement || "", 
   
-      formData.school || "", 
-      formData.classYear || "", 
-      formData.board || "", 
-      formData.course || "",
-      formData.modeOfClass || "", 
+      // Flying Hours
+      `${formData.totalSEHours || 0}:${formData.totalSEMinutes || 0}`,
+      formData.licenseEndorsement === "SE ME IR" ? `${formData.totalMEHours || 0}:${formData.totalMEMinutes || 0}` : "N/A",
+      formData.totalHours || "",
+      formData.aircraftTypes || "",
+      formData.lastFlightDate || "",
   
-      formData.feesPaid || "", 
-      formData.paymentMode || "", 
-      formData.installment || "", 
+      // Last 6 Months
+      formData.last6MonthsAvailable || "",
+      formData.sortieRows?.length || 0,
+      `${Math.floor(totalDayPIC)}h ${Math.round((totalDayPIC % 1) * 60)}m`,
+      `${Math.floor(totalNightPIC)}h ${Math.round((totalNightPIC % 1) * 60)}m`,
+      `${Math.floor(totalIF)}h ${Math.round((totalIF % 1) * 60)}m`,
   
-      fileStatus("addressProof"), 
-      fileStatus("photo"), 
-      fileStatus("marksheet10"), 
-      fileStatus("marksheet12"), 
-      fileStatus("aadhar"), 
+      // IR Check
+      formData.irCheckAircraft || "",
+      formData.irCheckDate || "",
+      formData.irCheckValidity || "",
+  
+      // Signal Reception
+      formData.signalReception || "",
+      formData.signalReceptionDate || "",
+      formData.signalReceptionValidity || "",
+  
+      // Commercial Checkride
+      formData.commercialCheckride || "",
+      formData.c172CheckrideDate || "",
+      formData.c172PICOption || "",
+  
+      // PIC Experience
+      `${formData.totalPICExperience || 0} hrs`,
+      `${formData.totalPICXC || 0} hrs`,
+      `${formData.totalInstrumentTime || 0} hrs`,
+  
+      // Medical & Exams
+      formData.medicalValidity || "",
+      dgcaExamsList,
+  
+      // Additional Documents
+      formData.rtrValidity || "",
+      formData.policeVerificationDate || "",
+      formData.nameChangeProcessed || "",
+  
+      // Source
+      formData.hearAboutUs || "",
+  
+      // File Status
+      fileStatus("passportPhoto"),
+      fileStatus("foreignLicense"),
+      fileStatus("ca40IR"),
+      fileStatus("signalReceptionTest"),
+      fileStatus("c172CheckrideStatement"),
+      fileStatus("c172FlightReview"),
+      fileStatus("pic100Statement"),
+      fileStatus("xc300Statement"),
+      fileStatus("picXCStatement"),
+      fileStatus("instrumentTimeStatement"),
+      fileStatus("medicalAssessment"),
+      fileStatus("rtr"),
+      fileStatus("frtol"),
+      fileStatus("policeVerification"),
+      fileStatus("marksheet10"),
+      fileStatus("marksheet12"),
+      fileStatus("nameChangeCertificate"),
+      fileStatus("studentSignature"),
+      fileStatus("finalSignature"),
     ]; 
   
-    await appendAdmissionRow(sheetRow); 
+    await appendConversionRow(sheetRow); 
     
     console.log("✅ Google Sheet updated");
   
     console.log("🎉 Job finished successfully"); 
     
   } finally {
-    // ✅ CLEANUP - Always clean up files, even if job fails
+    // Cleanup
     console.log("🧹 Cleaning up files...");
     
     const filesToClean = [];
     
-    // Add generated PDF
     if (combinedPdfPath) {
       filesToClean.push(combinedPdfPath);
     }
     
-    // Add uploaded files
     uploadedFiles.forEach(file => {
       if (file?.path) {
         filesToClean.push(file.path);

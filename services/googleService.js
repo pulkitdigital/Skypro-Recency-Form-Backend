@@ -9,21 +9,21 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: "v4", auth });
 
-async function appendAdmissionRow(row) {
+async function appendConversionRow(row) {
   const spreadsheetId = process.env.SHEET_ID;
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: "Sheet1!A1",
+    range: "Recency and Conversion Form!A1", // Use a separate sheet called "Conversion"
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [row],
     },
   });
 
-  console.log("📊 Data appended to Google Sheet");
+  console.log("📊 Data appended to Google Sheet (Conversion tab)");
 }
 
 module.exports = {
-  appendAdmissionRow,
+  appendConversionRow,
 };

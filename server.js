@@ -1,11 +1,9 @@
-
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const axios = require("axios");
 
 // Services
 const { addJob, getQueueStatus } = require("./services/queueService");
@@ -33,95 +31,67 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
 });
 
 /* Fields coming from frontend */
 const fields = [
-  { name: "addressProof", maxCount: 1 },
-  { name: "photo", maxCount: 1 },
+  { name: "passportPhoto", maxCount: 1 },
+  { name: "foreignLicense", maxCount: 1 },
+  { name: "ca40IR", maxCount: 1 },
+  { name: "signalReceptionTest", maxCount: 1 },
+  { name: "c172CheckrideStatement", maxCount: 1 },
+  { name: "c172FlightReview", maxCount: 1 },
+  { name: "pic100Statement", maxCount: 1 },
+  { name: "xc300Statement", maxCount: 1 },
+  { name: "picXCStatement", maxCount: 1 },
+  { name: "instrumentTimeStatement", maxCount: 1 },
+  { name: "medicalAssessment", maxCount: 1 },
+  { name: "rtr", maxCount: 1 },
+  { name: "frtol", maxCount: 1 },
+  { name: "policeVerification", maxCount: 1 },
   { name: "marksheet10", maxCount: 1 },
   { name: "marksheet12", maxCount: 1 },
-  { name: "aadhar", maxCount: 1 },
+  { name: "nameChangeCertificate", maxCount: 1 },
+  { name: "studentSignature", maxCount: 1 },
+  { name: "finalSignature", maxCount: 1 },
 ];
 
-/* ===============================
-//    RECAPTCHA VERIFICATION FUNCTION
-// ================================ */
-
-async function verifyRecaptcha(token) {
-  const secretKey = process.env.RECAPTCHA_SECRET_KEY;
-  
-  if (!secretKey) {
-    console.warn("⚠️  RECAPTCHA_SECRET_KEY not found in environment variables");
-    throw new Error("reCAPTCHA secret key not configured");
-  }
-
-  try {
-    const response = await axios.post(
-      `https://www.google.com/recaptcha/api/siteverify`,
-      null,
-      {
-        params: {
-          secret: secretKey,
-          response: token,
-        },
-      }
-    );
-
-    console.log("✅ reCAPTCHA verification response:", response.data);
-    return response.data;
-  } catch (error) {
-    console.error("❌ reCAPTCHA verification error:", error.message);
-    throw new Error("Failed to verify reCAPTCHA");
-  }
+// Dynamic DGCA exam fields
+for (let i = 0; i < 10; i++) {
+  fields.push({ name: `dgcaExam_airNavigation`, maxCount: 1 });
+  fields.push({ name: `dgcaExam_meteorology`, maxCount: 1 });
+  fields.push({ name: `dgcaExam_regulations`, maxCount: 1 });
+  fields.push({ name: `dgcaExam_technicalGeneral`, maxCount: 1 });
+  fields.push({ name: `dgcaExam_technicalSpecific`, maxCount: 1 });
+  fields.push({ name: `dgcaExam_compositePaper`, maxCount: 1 });
 }
 
 /* ===============================
-   SUBMIT ENDPOINT (WITH RECAPTCHA)
+   SUBMIT ENDPOINT
 ================================ */
-app.post("/api/submit", upload.fields(fields), async (req, res) => {
+app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
   try {
-     const { recaptchaToken } = req.body;
+    console.log("📥 Received conversion form submission");
 
-    // ✅ STEP 1: Verify reCAPTCHA
-    if (!recaptchaToken) {
-      console.warn("⚠️  No reCAPTCHA token provided");
-      return res.status(400).json({ 
-        error: "reCAPTCHA token is missing. Please complete the verification." 
-      });
-    }
-
-    console.log("🔒 Verifying reCAPTCHA token...");
-    const recaptchaResult = await verifyRecaptcha(recaptchaToken);
-
-    if (!recaptchaResult.success) {
-      console.error("❌ reCAPTCHA verification failed:", recaptchaResult["error-codes"]);
-      return res.status(400).json({ 
-        error: "reCAPTCHA verification failed. Please try again.",
-        details: recaptchaResult["error-codes"] || []
-      });
-    }
-
-    // Optional: Check score for reCAPTCHA v3 (if using v3 instead of v2)
-    if (recaptchaResult.score && recaptchaResult.score < 0.5) {
-      console.warn("⚠️  Low reCAPTCHA score:", recaptchaResult.score);
-      return res.status(400).json({ 
-        error: "Security check failed. Please try again." 
-      });
-    }
-
-    console.log("✅ reCAPTCHA verified successfully");
-  
-
-    // ✅ STEP 2: Process form data
+    // Process form data
     const formData = {
       ...req.body,
       submittedAt: new Date().toISOString(),
     };
 
-    // Remove recaptchaToken from stored data
-    // delete formData.recaptchaToken;
+    // Parse JSON fields
+    if (formData.dgcaExams && typeof formData.dgcaExams === 'string') {
+      formData.dgcaExams = JSON.parse(formData.dgcaExams);
+    }
+    
+    if (formData.sortieRows && typeof formData.sortieRows === 'string') {
+      formData.sortieRows = JSON.parse(formData.sortieRows);
+    }
+    
+    if (formData.dgcaExamDetails && typeof formData.dgcaExamDetails === 'string') {
+      formData.dgcaExamDetails = JSON.parse(formData.dgcaExamDetails);
+    }
 
     if (!formData.fullName) {
       return res.status(400).json({ error: "Full name required" });
@@ -133,10 +103,47 @@ app.post("/api/submit", upload.fields(fields), async (req, res) => {
     console.log("📝 Form data received:", {
       fullName: formData.fullName,
       email: formData.email,
-      filesCount: uploadedFiles.length
+      contractingState: formData.contractingState,
+      filesCount: uploadedFiles.length,
+      sortieRowsCount: formData.sortieRows?.length || 0,
+      dgcaExamsCount: formData.dgcaExamDetails?.length || 0
     });
 
-    // ✅ STEP 3: Add job to queue (non-blocking)
+    // Validate required files
+    const requiredFiles = [
+      'passportPhoto',
+      'foreignLicense',
+      'studentSignature',
+      'finalSignature'
+    ];
+
+    // Check conditional required files
+    if (formData.last6MonthsAvailable === "Yes") {
+      requiredFiles.push('ca40IR');
+      if (formData.signalReception === "Yes") {
+        requiredFiles.push('signalReceptionTest');
+      }
+    }
+
+    if (formData.commercialCheckride === "C172") {
+      requiredFiles.push('c172CheckrideStatement');
+    } else if (formData.c172PICOption === "flightReview") {
+      requiredFiles.push('c172FlightReview');
+    }
+
+    if (formData.nameChangeProcessed === "Yes") {
+      requiredFiles.push('nameChangeCertificate');
+    }
+
+    const missingFiles = requiredFiles.filter(fieldName => 
+      !uploadedFiles.some(f => f.fieldname === fieldName)
+    );
+
+    if (missingFiles.length > 0) {
+      console.warn("⚠️ Missing required files:", missingFiles);
+    }
+
+    // Add job to queue (non-blocking)
     const jobId = addJob({
       formData,
       uploadedFiles,
@@ -145,7 +152,7 @@ app.post("/api/submit", upload.fields(fields), async (req, res) => {
 
     console.log("✅ Job added to queue:", jobId);
 
-    // ✅ STEP 4: INSTANT RESPONSE (2-3 seconds)
+    // INSTANT RESPONSE
     res.json({
       success: true,
       message: "Form submitted successfully! Processing in background.",
@@ -153,28 +160,18 @@ app.post("/api/submit", upload.fields(fields), async (req, res) => {
       info: "You will receive a confirmation email shortly.",
     });
 
-    // Background processing continues automatically...
-
   } catch (err) {
     console.error("❌ ERROR:", err);
-    
-    // Handle specific reCAPTCHA errors
-    if (err.message.includes("reCAPTCHA")) {
-      return res.status(400).json({ 
-        error: "Security verification failed. Please try again." 
-      });
-    }
-    
     res.status(500).json({ error: err.message });
   }
 });
 
 app.get("/", (req, res) => {
-  res.send("Backend started successfully 🚀");
+  res.send("Conversion & Recency Backend started successfully 🚀");
 });
 
 /* ===============================
-   QUEUE STATUS ENDPOINT (OPTIONAL)
+   QUEUE STATUS ENDPOINT
 ================================ */
 app.get("/api/queue-status", (req, res) => {
   res.json(getQueueStatus());
@@ -186,7 +183,6 @@ app.get("/api/queue-status", (req, res) => {
 app.get("/health", (req, res) => {
   res.json({ 
     status: "OK",
-    recaptchaConfigured: !!process.env.RECAPTCHA_SECRET_KEY,
     timestamp: new Date().toISOString()
   });
 });
@@ -197,6 +193,5 @@ app.get("/health", (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
-  console.log(`🔒 reCAPTCHA: ${process.env.RECAPTCHA_SECRET_KEY ? '✅ Configured' : '⚠️  NOT CONFIGURED - Add RECAPTCHA_SECRET_KEY to .env'}`);
   console.log(`📁 Upload directory: ${uploadDir}`);
 });
