@@ -1,4 +1,4 @@
-// Backend/services/queueService.js
+// Backend/services/queueService.js - EXACT FORM/PDF SEQUENCE
  
 const generatePDF = require("./pdfGenerator"); 
 const sendAdminEmail = require("./emailService"); 
@@ -104,16 +104,16 @@ async function processJob(jobData) {
     
     console.log("✅ Emails sent successfully");
   
-    // 3️⃣ Push data to Google Sheet
+    // 3️⃣ Push data to Google Sheet - EXACT FORM/PDF SEQUENCE
     console.log("📊 Writing to Google Sheet..."); 
   
-    // ✅ FIXED: Helper function with correct field names
+    // Helper function to check file status
     const fileStatus = (name) => 
       uploadedFiles.some((f) => f.fieldname === name) 
         ? "Attached" 
         : "Not Attached"; 
   
-    // Calculate sortie summary with Night PIC LDG/TO
+    // Calculate sortie summary
     let totalDayPIC = 0, totalNightPIC = 0, totalIF = 0;
     let totalNightPICLDG = 0, totalNightPICTO = 0;
     
@@ -137,7 +137,7 @@ async function processJob(jobData) {
       });
     }
 
-    // Format DGCA exams with validity status (Expired, SPL Exam Required, or valid date)
+    // Format DGCA exams summary
     const dgcaExamsList = formData.dgcaExamDetails && formData.dgcaExamDetails.length > 0
       ? formData.dgcaExamDetails.map(exam => {
           const examName = exam.exam.replace(/([A-Z])/g, ' $1').trim();
@@ -150,29 +150,40 @@ async function processJob(jobData) {
         }).join("; ")
       : "None";
 
+    // Helper to get DGCA exam details
+    const getExamDetail = (examName, field) => {
+      if (!formData.dgcaExamDetails || formData.dgcaExamDetails.length === 0) return "";
+      const exam = formData.dgcaExamDetails.find(e => e.exam === examName);
+      return exam ? exam[field] || "" : "";
+    };
+
+    // 🎯 EXACT SEQUENCE AS FORM & PDF (75 Columns Total)
     const sheetRow = [ 
-      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }), // 1. Timestamp
+      // 1. TIMESTAMP
+      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
   
-      // Personal Details (5 columns: 2-6)
-      formData.fullName || "", 
-      formData.age || "", 
-      formData.gender || "", 
-      formData.mobile || "", 
-      formData.email || "", 
+      // 2-7. PERSONAL DETAILS
+      formData.fullName || "",
+      formData.age || "",
+      formData.gender || "",
+      formData.mobile || "",
+      formData.email || "",
+      fileStatus("passportPhoto"),
   
-      // License Details (3 columns: 7-9)
-      formData.contractingState || "", 
-      formData.licenseValidity || "", 
-      formData.licenseEndorsement || "", 
+      // 8-11. LICENSE DETAILS
+      formData.contractingState || "",
+      formData.licenseValidity || "",
+      formData.licenseEndorsement || "",
+      fileStatus("foreignLicense"),
   
-      // Flying Hours (5 columns: 10-14)
+      // 12-16. TOTAL FLYING HOURS
       `${formData.totalSEHours || 0}:${formData.totalSEMinutes || 0}`,
       formData.licenseEndorsement === "SE ME IR" ? `${formData.totalMEHours || 0}:${formData.totalMEMinutes || 0}` : "N/A",
       formData.totalHours || "",
       formData.aircraftTypes || "",
       formData.lastFlightDate || "",
   
-      // Last 6 Months (7 columns: 15-21)
+      // 17-27. LAST 6 MONTHS OF FLYING EXPERIENCE
       formData.last6MonthsAvailable || "",
       formData.sortieRows?.length || 0,
       `${Math.floor(totalDayPIC)}h ${Math.round((totalDayPIC % 1) * 60)}m`,
@@ -180,67 +191,85 @@ async function processJob(jobData) {
       totalNightPICLDG,
       totalNightPICTO,
       `${Math.floor(totalIF)}h ${Math.round((totalIF % 1) * 60)}m`,
-  
-      // IR Check (3 columns: 22-24)
       formData.irCheckAircraft || "",
       formData.irCheckDate || "",
       formData.irCheckValidity || "",
+      fileStatus("ca40IR"),
   
-      // Signal Reception (3 columns: 25-27)
+      // 28-31. SIGNAL RECEPTION TEST
       formData.signalReception || "",
       formData.signalReceptionDate || "",
       formData.signalReceptionValidity || "",
+      fileStatus("signalReceptionTest"),
   
-      // Commercial Checkride (3 columns: 28-30)
+      // 32-36. COMMERCIAL CHECKRIDE
       formData.commercialCheckride || "",
       formData.c172CheckrideDate || "",
-      formData.c172PICOption || "",
-  
-      // PIC Experience (3 columns: 31-33)
-      `${formData.totalPICExperience || 0} hrs`,
-      `${formData.totalPICCrossCountry || 0} hrs`,
-      `${formData.totalInstrumentTime || 0} hrs`,
-  
-      // Medical & Exams (1 column: 34)
-      formData.medicalValidity || "",
-      
-      // DGCA Exams Summary (1 column: 35)
-      dgcaExamsList,
-      
-      // DGCA Exam File Attachments (6 columns: 36-41)
-      fileStatus("dgcaExam_airNavigation"),
-      fileStatus("dgcaExam_meteorology"),
-      fileStatus("dgcaExam_airRegulations"),
-      fileStatus("dgcaExam_technicalGeneral"),
-      fileStatus("dgcaExam_technicalSpecific"),
-      fileStatus("dgcaExam_compositePaper"),
-  
-      // Additional Documents (3 columns: 42-44)
-      formData.rtrValidity || "",
-      formData.policeVerificationDate || "",
-      formData.nameChangeProcessed || "",
-  
-      // Source (1 column: 45)
-      formData.hearAboutUs || "",
-  
-      // ✅ FIXED: File Status - Regular Documents (19 columns: 46-64) with correct field names
-      fileStatus("passportPhoto"),
-      fileStatus("foreignLicense"),
-      fileStatus("ca40IR"),
-      fileStatus("signalReceptionTest"),
       fileStatus("c172CheckrideStatement"),
+      formData.c172PICOption || "",
       fileStatus("c172FlightReview"),
+  
+      // 37-43. PIC EXPERIENCE
+      `${formData.totalPICExperience || 0} hrs`,
       fileStatus("pic100Statement"),
       fileStatus("crossCountry300Statement"),
+      `${formData.totalPICCrossCountry || 0} hrs`,
       fileStatus("picCrossCountryStatement"),
+      `${formData.totalInstrumentTime || 0} hrs`,
       fileStatus("instrumentTimeStatement"),
+  
+      // 44-45. DGCA CLASS-1 MEDICAL ASSESSMENT
+      formData.medicalValidity || "",
       fileStatus("medicalAssessment"),
-      fileStatus("rtrCertificate"), // ✅ FIXED: was "rtr"
-      fileStatus("frtolCertificate"), // ✅ FIXED: was "frtol"
+      
+      // 46-64. DGCA EXAMS CLEARED
+      dgcaExamsList, // Summary
+      
+      // Air Navigation (47-49)
+      getExamDetail("airNavigation", "resultDate"),
+      getExamDetail("airNavigation", "validity"),
+      fileStatus("dgcaExam_airNavigation"),
+      
+      // Meteorology (50-52)
+      getExamDetail("meteorology", "resultDate"),
+      getExamDetail("meteorology", "validity"),
+      fileStatus("dgcaExam_meteorology"),
+      
+      // Air Regulations (53-55)
+      getExamDetail("airRegulations", "resultDate"),
+      getExamDetail("airRegulations", "validity"),
+      fileStatus("dgcaExam_airRegulations"),
+      
+      // Technical General (56-58)
+      getExamDetail("technicalGeneral", "resultDate"),
+      getExamDetail("technicalGeneral", "validity"),
+      fileStatus("dgcaExam_technicalGeneral"),
+      
+      // Technical Specific (59-61)
+      getExamDetail("technicalSpecific", "resultDate"),
+      getExamDetail("technicalSpecific", "validity"),
+      fileStatus("dgcaExam_technicalSpecific"),
+      
+      // Composite Paper (62-64)
+      getExamDetail("compositePaper", "resultDate"),
+      getExamDetail("compositePaper", "validity"),
+      fileStatus("dgcaExam_compositePaper"),
+  
+      // 65-72. ADDITIONAL DOCUMENTS
+      fileStatus("rtrCertificate"),
+      formData.rtrValidity || "",
+      fileStatus("frtolCertificate"),
+      formData.policeVerificationDate || "",
       fileStatus("policeVerification"),
       fileStatus("marksheet10"),
       fileStatus("marksheet12"),
+      formData.nameChangeProcessed || "",
       fileStatus("nameChangeCertificate"),
+  
+      // 73. HOW DID YOU HEAR ABOUT US
+      formData.hearAboutUs || "",
+  
+      // 74-75. SIGNATURES
       fileStatus("studentSignature"),
       fileStatus("finalSignature"),
     ]; 
