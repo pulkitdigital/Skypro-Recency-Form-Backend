@@ -245,31 +245,6 @@ async function generatePDF(formData, uploadedFiles = []) {
         }
       }
 
-      // // Add Name below signature
-      // doc
-      //   .fontSize(7)
-      //   .fillColor("#1a1a1a")
-      //   .font("Helvetica")
-      //   .text(
-      //     formData.fullName || "N/A",
-      //     photoBoxX,
-      //     signBoxY + signBoxHeight + 3,
-      //     { width: photoBoxWidth, align: "center" },
-      //   );
-
-      // // Add Date below name
-      // const currentDate = new Date().toLocaleDateString("en-GB");
-      // doc
-      //   .fontSize(7)
-      //   .fillColor("#666666")
-      //   .font("Helvetica")
-      //   .text(
-      //     `Date: ${currentDate}`,
-      //     photoBoxX,
-      //     signBoxY + signBoxHeight + 13,
-      //     { width: photoBoxWidth, align: "center" },
-      //   );
-
       // Print personal details fields on left side (with space for photo/signature on right)
       personalFields.forEach(([label, value], index) => {
         if (yPosition > 680) {
@@ -806,30 +781,6 @@ async function generatePDF(formData, uploadedFiles = []) {
           examXPos += examColWidths.resultDate;
 
           // Validity
-          // const validityColor =
-          //   exam.validity === "OUT OF RECENCY" ? "#dc2626" : "#1a1a1a";
-          // doc
-          //   .fillColor(validityColor)
-          //   .font(
-          //     exam.validity === "OUT OF RECENCY"
-          //       ? "Helvetica-Bold"
-          //       : "Helvetica",
-          //   );
-
-          // // Handle "OUT OF RECENCY" text - single line with proper case
-          // if (exam.validity === "OUT OF RECENCY") {
-          //   doc
-          //     .fontSize(7)
-          //     .text("Out of Recency", examXPos + 2, yPosition + 5, {
-          //       width: examColWidths.validity - 4,
-          //     });
-          //   doc.fontSize(8); // Reset font size
-          // } else {
-          //   doc.text(exam.validity || "-", examXPos + 2, yPosition + 5, {
-          //     width: examColWidths.validity - 4,
-          //   });
-          // }
-
           let validityColor = "#1a1a1a";
           let validityFont = "Helvetica";
           let validityText = exam.validity || "-";
@@ -881,14 +832,14 @@ async function generatePDF(formData, uploadedFiles = []) {
       // 8. Additional Documents
       const additionalDocsFields = [];
 
-      // Only add fields that have uploaded files
-      if (isFileUploaded("rtr")) {
+      // Only add fields that have uploaded files - ✅ FIXED FIELD NAMES
+      if (isFileUploaded("rtrCertificate")) { // ✅ FIXED: was "rtr"
         additionalDocsFields.push(["RTR", "Attached"]);
       }
       if (formData.rtrValidity) {
         additionalDocsFields.push(["RTR Validity", formData.rtrValidity]);
       }
-      if (isFileUploaded("frtol")) {
+      if (isFileUploaded("frtolCertificate")) { // ✅ FIXED: was "frtol"
         additionalDocsFields.push(["FRTOL", "Attached"]);
       }
       if (formData.policeVerificationDate) {

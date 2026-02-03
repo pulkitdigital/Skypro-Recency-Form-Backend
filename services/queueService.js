@@ -150,69 +150,79 @@ async function processJob(jobData) {
       : "None";
 
     const sheetRow = [ 
-      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }), // Timestamp
+      new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }), // 1. Timestamp
   
-      // Personal Details
+      // Personal Details (5 columns: 2-6)
       formData.fullName || "", 
       formData.age || "", 
       formData.gender || "", 
       formData.mobile || "", 
       formData.email || "", 
   
-      // License Details
+      // License Details (3 columns: 7-9)
       formData.contractingState || "", 
       formData.licenseValidity || "", 
       formData.licenseEndorsement || "", 
   
-      // Flying Hours
+      // Flying Hours (5 columns: 10-14)
       `${formData.totalSEHours || 0}:${formData.totalSEMinutes || 0}`,
       formData.licenseEndorsement === "SE ME IR" ? `${formData.totalMEHours || 0}:${formData.totalMEMinutes || 0}` : "N/A",
       formData.totalHours || "",
       formData.aircraftTypes || "",
       formData.lastFlightDate || "",
   
-      // Last 6 Months
+      // Last 6 Months (7 columns: 15-21)
       formData.last6MonthsAvailable || "",
       formData.sortieRows?.length || 0,
       `${Math.floor(totalDayPIC)}h ${Math.round((totalDayPIC % 1) * 60)}m`,
       `${Math.floor(totalNightPIC)}h ${Math.round((totalNightPIC % 1) * 60)}m`,
-      totalNightPICLDG, // New: Total Night PIC LDG
-      totalNightPICTO,  // New: Total Night PIC TO
+      totalNightPICLDG,
+      totalNightPICTO,
       `${Math.floor(totalIF)}h ${Math.round((totalIF % 1) * 60)}m`,
   
-      // IR Check
+      // IR Check (3 columns: 22-24)
       formData.irCheckAircraft || "",
       formData.irCheckDate || "",
       formData.irCheckValidity || "",
   
-      // Signal Reception
+      // Signal Reception (3 columns: 25-27)
       formData.signalReception || "",
       formData.signalReceptionDate || "",
       formData.signalReceptionValidity || "",
   
-      // Commercial Checkride
+      // Commercial Checkride (3 columns: 28-30)
       formData.commercialCheckride || "",
       formData.c172CheckrideDate || "",
       formData.c172PICOption || "",
   
-      // PIC Experience
+      // PIC Experience (3 columns: 31-33)
       `${formData.totalPICExperience || 0} hrs`,
-      `${formData.totalPICCrossCountry || 0} hrs`, // Updated from totalPICXC
+      `${formData.totalPICCrossCountry || 0} hrs`,
       `${formData.totalInstrumentTime || 0} hrs`,
   
-      // Medical & Exams
+      // Medical & Exams (1 column: 34)
       formData.medicalValidity || "",
-      dgcaExamsList, // Now includes Expired/SPL Exam Required status
+      
+      // DGCA Exams Summary (1 column: 35)
+      dgcaExamsList,
+      
+      // ✅ DGCA Exam File Attachments (6 columns: 36-41) - MOVED HERE
+      fileStatus("dgcaExam_airNavigation"),
+      fileStatus("dgcaExam_meteorology"),
+      fileStatus("dgcaExam_airRegulations"),
+      fileStatus("dgcaExam_technicalGeneral"),
+      fileStatus("dgcaExam_technicalSpecific"),
+      fileStatus("dgcaExam_compositePaper"),
   
-      // Additional Documents
+      // Additional Documents (3 columns: 42-44)
       formData.rtrValidity || "",
       formData.policeVerificationDate || "",
       formData.nameChangeProcessed || "",
   
-      // Source
+      // Source (1 column: 45)
       formData.hearAboutUs || "",
   
-      // File Status
+      // File Status - Regular Documents (19 columns: 46-64)
       fileStatus("passportPhoto"),
       fileStatus("foreignLicense"),
       fileStatus("ca40IR"),
@@ -220,12 +230,12 @@ async function processJob(jobData) {
       fileStatus("c172CheckrideStatement"),
       fileStatus("c172FlightReview"),
       fileStatus("pic100Statement"),
-      fileStatus("crossCountry300Statement"), // Updated from xc300Statement
-      fileStatus("picCrossCountryStatement"), // Updated from picXCStatement
+      fileStatus("crossCountry300Statement"),
+      fileStatus("picCrossCountryStatement"),
       fileStatus("instrumentTimeStatement"),
       fileStatus("medicalAssessment"),
-      fileStatus("rtr"),
-      fileStatus("frtol"),
+      fileStatus("rtrCertificate"),
+      fileStatus("frtolCertificate"),
       fileStatus("policeVerification"),
       fileStatus("marksheet10"),
       fileStatus("marksheet12"),

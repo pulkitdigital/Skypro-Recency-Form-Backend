@@ -125,10 +125,11 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
      EMAIL CONTENT
   ========================== */
 
-  // Format sortie summary if available
+  // Format sortie summary if available - ✅ ENHANCED WITH LDG/TO
   let sortieSummary = "";
   if (formData.sortieRows && formData.sortieRows.length > 0) {
     let totalDayPIC = 0, totalNightPIC = 0, totalIF = 0;
+    let totalNightPICLDG = 0, totalNightPICTO = 0; // ✅ ADDED
     
     formData.sortieRows.forEach(row => {
       const hours = parseInt(row.hours) || 0;
@@ -136,7 +137,11 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       const totalTime = hours + minutes / 60;
       
       if (row.typeOfFlight === "Day PIC") totalDayPIC += totalTime;
-      if (row.typeOfFlight === "Night PIC") totalNightPIC += totalTime;
+      if (row.typeOfFlight === "Night PIC") {
+        totalNightPIC += totalTime;
+        totalNightPICLDG += parseInt(row.ldg) || 0; // ✅ ADDED
+        totalNightPICTO += parseInt(row.to) || 0;   // ✅ ADDED
+      }
       if (row.typeOfFlight === "IF") totalIF += totalTime;
     });
     
@@ -145,6 +150,8 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
         <h4 style="color: #1e40af; margin-top: 0;">Last 6 Months Flying Summary</h4>
         <p style="margin: 5px 0;"><strong>Total Day PIC:</strong> ${Math.floor(totalDayPIC)}h ${Math.round((totalDayPIC % 1) * 60)}m</p>
         <p style="margin: 5px 0;"><strong>Total Night PIC:</strong> ${Math.floor(totalNightPIC)}h ${Math.round((totalNightPIC % 1) * 60)}m</p>
+        <p style="margin: 5px 0;"><strong>Total Night PIC LDG:</strong> ${totalNightPICLDG}</p>
+        <p style="margin: 5px 0;"><strong>Total Night PIC TO:</strong> ${totalNightPICTO}</p>
         <p style="margin: 5px 0;"><strong>Total IF:</strong> ${Math.floor(totalIF)}h ${Math.round((totalIF % 1) * 60)}m</p>
       </div>
     `;
@@ -157,11 +164,26 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; margin: 15px 0;">
         <h4 style="color: #166534; margin-top: 0;">DGCA Exams Cleared</h4>
         <ul style="margin: 10px 0; padding-left: 20px;">
-          ${formData.dgcaExamDetails.map(exam => `
-            <li><strong>${exam.exam.replace(/([A-Z])/g, " $1").trim()}:</strong> 
-            Result Date: ${exam.resultDate || 'N/A'}, 
-            Validity: ${exam.validity || 'N/A'}</li>
-          `).join('')}
+          ${formData.dgcaExamDetails.map(exam => {
+            const examName = exam.exam.replace(/([A-Z])/g, " $1").trim();
+            let statusBadge = "";
+            
+            if (exam.validity === "Expired") {
+              statusBadge = '<span style="color: #dc2626; font-weight: bold;">❌ EXPIRED</span>';
+            } else if (exam.validity === "SPL Exam Required") {
+              statusBadge = '<span style="color: #f59e0b; font-weight: bold;">⚠️ SPL EXAM REQUIRED</span>';
+            } else {
+              statusBadge = `<span style="color: #059669;">✅ Valid until ${exam.validity}</span>`;
+            }
+            
+            return `
+              <li>
+                <strong>${examName}:</strong> 
+                Result Date: ${exam.resultDate || 'N/A'}<br>
+                Status: ${statusBadge}
+              </li>
+            `;
+          }).join('')}
         </ul>
       </div>
     `;
@@ -262,7 +284,7 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       <div style="background-color: #fdf4ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #701a75; margin-top: 0;">PIC Experience</h3>
         <p style="margin: 5px 0;"><strong>Total PIC Experience:</strong> ${formData.totalPICExperience} hours</p>
-        <p style="margin: 5px 0;"><strong>Total PIC XC:</strong> ${formData.totalPICXC} hours</p>
+        <p style="margin: 5px 0;"><strong>Total PIC Cross Country:</strong> ${formData.totalPICCrossCountry} hours</p>
         <p style="margin: 5px 0;"><strong>Total Instrument Time:</strong> ${formData.totalInstrumentTime} hours</p>
       </div>
       
@@ -364,7 +386,8 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       </div>
     </div>
   `;
-
+  studentEmail.attachment = attachments;
+    
 
   /* ==========================
      SEND BOTH EMAILS IN PARALLEL

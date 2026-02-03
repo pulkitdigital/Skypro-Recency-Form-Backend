@@ -35,7 +35,7 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
 });
 
-/* Fields coming from frontend */
+/* Fields coming from frontend - CORRECTED */
 const fields = [
   { name: "passportPhoto", maxCount: 1 },
   { name: "foreignLicense", maxCount: 1 },
@@ -48,8 +48,8 @@ const fields = [
   { name: "picCrossCountryStatement", maxCount: 1 },
   { name: "instrumentTimeStatement", maxCount: 1 },
   { name: "medicalAssessment", maxCount: 1 },
-  { name: "rtr", maxCount: 1 },
-  { name: "frtol", maxCount: 1 },
+  { name: "rtrCertificate", maxCount: 1 }, // ✅ FIXED: was "rtr"
+  { name: "frtolCertificate", maxCount: 1 }, // ✅ FIXED: was "frtol"
   { name: "policeVerification", maxCount: 1 },
   { name: "marksheet10", maxCount: 1 },
   { name: "marksheet12", maxCount: 1 },
@@ -168,12 +168,22 @@ app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
       dgcaExamsCount: formData.dgcaExamDetails?.length || 0
     });
 
-    // Validate required files
-    const requiredFiles = [
+    // ✅ ENHANCED: Comprehensive required files validation
+    let requiredFiles = [
       'passportPhoto',
       'foreignLicense',
       'studentSignature',
-      'finalSignature'
+      'finalSignature',
+      'pic100Statement',
+      'crossCountry300Statement',
+      'picCrossCountryStatement',
+      'instrumentTimeStatement',
+      'medicalAssessment',
+      'rtrCertificate', // ✅ FIXED
+      'frtolCertificate', // ✅ FIXED
+      'policeVerification',
+      'marksheet10',
+      'marksheet12'
     ];
 
     // Check conditional required files
@@ -194,12 +204,22 @@ app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
       requiredFiles.push('nameChangeCertificate');
     }
 
-    const missingFiles = requiredFiles.filter(fieldName => 
-      !uploadedFiles.some(f => f.fieldname === fieldName)
+    // Add DGCA exam file requirements
+    if (formData.dgcaExamDetails && formData.dgcaExamDetails.length > 0) {
+      formData.dgcaExamDetails.forEach(exam => {
+        requiredFiles.push(`dgcaExam_${exam.exam}`);
+      });
+    }
+
+    const missingFiles = requiredFiles.filter(field => 
+      !uploadedFiles.some(f => f.fieldname === field)
     );
 
     if (missingFiles.length > 0) {
       console.warn("⚠️ Missing required files:", missingFiles);
+      return res.status(400).json({ 
+        error: `Please upload all required files: ${missingFiles.join(', ')}` 
+      });
     }
 
     // Add job to queue (non-blocking)
