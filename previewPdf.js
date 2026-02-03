@@ -6,6 +6,7 @@ const dummyData = {
   gender: "Male",
   mobile: "9999999999",
   email: "test@mail.com",
+  foreignLicense: "Attached",
   contractingState: "USA",
   licenseValidity: "Valid",
   licenseEndorsement: "SE ME IR",

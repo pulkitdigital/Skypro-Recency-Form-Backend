@@ -128,7 +128,12 @@ async function generatePDF(formData, uploadedFiles = []) {
           doc
             .font("Helvetica")
             .fillColor("#1a1a1a")
-            .text(value || "N/A", 240, yPosition, { width: 295 });
+            .text(
+              value !== undefined && value !== null ? String(value) : "N/A",
+              240,
+              yPosition,
+              { width: 295 }
+            );
 
           yPosition += label === "Total PIC Cross-Country Experience" ? 32 : 22;
         });
@@ -280,14 +285,14 @@ async function generatePDF(formData, uploadedFiles = []) {
 
       yPosition += 15;
 
-      // 2. License Details - ✅ FIXED: Now shows Foreign License as "Attached"
+      // 2. License Details - ✅ FIXED: Now properly shows Foreign License as "Attached"
       const licenseFields = [
         ["Contracting State License", formData.contractingState],
         ["License Validity", formData.licenseValidity],
         ["License Endorsement", formData.licenseEndorsement],
       ];
       
-      // Add "Attached" status if Foreign License is uploaded
+      // ✅ FIX: Add "Attached" status BEFORE calling addSection
       if (isFileUploaded("foreignLicense")) {
         licenseFields.push(["Foreign License", "Attached"]);
       }
@@ -649,7 +654,6 @@ async function generatePDF(formData, uploadedFiles = []) {
       addSection("5. COMMERCIAL CHECKRIDE", checkrideFields);
 
       // 6. PIC Experience
-
       const picFields = [
         ["Total PIC Experience", `${formData.totalPICExperience || 0} hours`],
       ];
