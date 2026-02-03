@@ -280,12 +280,19 @@ async function generatePDF(formData, uploadedFiles = []) {
 
       yPosition += 15;
 
-      // 2. License Details
-      addSection("2. LICENSE DETAILS", [
+      // 2. License Details - ✅ FIXED: Now shows Foreign License as "Attached"
+      const licenseFields = [
         ["Contracting State License", formData.contractingState],
         ["License Validity", formData.licenseValidity],
         ["License Endorsement", formData.licenseEndorsement],
-      ]);
+      ];
+      
+      // Add "Attached" status if Foreign License is uploaded
+      if (isFileUploaded("foreignLicense")) {
+        licenseFields.push(["Foreign License", "Attached"]);
+      }
+      
+      addSection("2. LICENSE DETAILS", licenseFields);
 
       // 3. Total Flying Hours
       const flyingHoursFields = [
@@ -829,18 +836,18 @@ async function generatePDF(formData, uploadedFiles = []) {
         yPosition += 15;
       }
 
-      // 8. Additional Documents
+      // 8. Additional Documents - ✅ FIXED: Now shows all files as "Attached"
       const additionalDocsFields = [];
 
-      // Only add fields that have uploaded files - ✅ FIXED FIELD NAMES
-      if (isFileUploaded("rtrCertificate")) { // ✅ FIXED: was "rtr"
-        additionalDocsFields.push(["RTR", "Attached"]);
+      // Add all fields with their attachment status
+      if (isFileUploaded("rtrCertificate")) {
+        additionalDocsFields.push(["RTR Certificate", "Attached"]);
       }
       if (formData.rtrValidity) {
         additionalDocsFields.push(["RTR Validity", formData.rtrValidity]);
       }
-      if (isFileUploaded("frtolCertificate")) { // ✅ FIXED: was "frtol"
-        additionalDocsFields.push(["FRTOL", "Attached"]);
+      if (isFileUploaded("frtolCertificate")) {
+        additionalDocsFields.push(["FRTOL Certificate", "Attached"]);
       }
       if (formData.policeVerificationDate) {
         additionalDocsFields.push([

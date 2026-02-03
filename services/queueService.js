@@ -107,6 +107,7 @@ async function processJob(jobData) {
     // 3️⃣ Push data to Google Sheet
     console.log("📊 Writing to Google Sheet..."); 
   
+    // ✅ FIXED: Helper function with correct field names
     const fileStatus = (name) => 
       uploadedFiles.some((f) => f.fieldname === name) 
         ? "Attached" 
@@ -206,7 +207,7 @@ async function processJob(jobData) {
       // DGCA Exams Summary (1 column: 35)
       dgcaExamsList,
       
-      // ✅ DGCA Exam File Attachments (6 columns: 36-41) - MOVED HERE
+      // DGCA Exam File Attachments (6 columns: 36-41)
       fileStatus("dgcaExam_airNavigation"),
       fileStatus("dgcaExam_meteorology"),
       fileStatus("dgcaExam_airRegulations"),
@@ -222,7 +223,7 @@ async function processJob(jobData) {
       // Source (1 column: 45)
       formData.hearAboutUs || "",
   
-      // File Status - Regular Documents (19 columns: 46-64)
+      // ✅ FIXED: File Status - Regular Documents (19 columns: 46-64) with correct field names
       fileStatus("passportPhoto"),
       fileStatus("foreignLicense"),
       fileStatus("ca40IR"),
@@ -234,8 +235,8 @@ async function processJob(jobData) {
       fileStatus("picCrossCountryStatement"),
       fileStatus("instrumentTimeStatement"),
       fileStatus("medicalAssessment"),
-      fileStatus("rtrCertificate"),
-      fileStatus("frtolCertificate"),
+      fileStatus("rtrCertificate"), // ✅ FIXED: was "rtr"
+      fileStatus("frtolCertificate"), // ✅ FIXED: was "frtol"
       fileStatus("policeVerification"),
       fileStatus("marksheet10"),
       fileStatus("marksheet12"),
