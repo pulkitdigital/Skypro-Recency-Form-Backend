@@ -22,8 +22,8 @@ function createBrevoClient() {
   console.log("📧 Initializing Brevo API client...");
 
   apiInstance = new brevo.TransactionalEmailsApi();
-  
-  const apiKeyAuth = apiInstance.authentications['apiKey'];
+
+  const apiKeyAuth = apiInstance.authentications["apiKey"];
   apiKeyAuth.apiKey = apiKey;
 
   return apiInstance;
@@ -40,13 +40,13 @@ async function verifyConnection() {
 
   try {
     console.log("🔍 Verifying Brevo API key...");
-    
+
     const accountApi = new brevo.AccountApi();
-    const apiKeyAuth = accountApi.authentications['apiKey'];
+    const apiKeyAuth = accountApi.authentications["apiKey"];
     apiKeyAuth.apiKey = process.env.BREVO_API_KEY;
-    
+
     await accountApi.getAccount();
-    
+
     console.log("✅ Brevo API key verified successfully");
     isVerified = true;
   } catch (error) {
@@ -99,24 +99,28 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
   const sendWithRetry = async (emailData, label, maxRetries = 3) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`📤 Sending ${label} (Attempt ${attempt}/${maxRetries})...`);
-        
+        console.log(
+          `📤 Sending ${label} (Attempt ${attempt}/${maxRetries})...`,
+        );
+
         const result = await client.sendTransacEmail(emailData);
-        
+
         console.log(`✅ ${label} sent successfully`);
         console.log(`   Message ID: ${result.messageId}`);
-        
+
         return result;
       } catch (error) {
         console.error(`❌ ${label} Attempt ${attempt} failed:`, error.message);
-        
+
         if (attempt === maxRetries) {
-          throw new Error(`${label} failed after ${maxRetries} attempts: ${error.message}`);
+          throw new Error(
+            `${label} failed after ${maxRetries} attempts: ${error.message}`,
+          );
         }
-        
+
         const waitTime = attempt * 3000;
-        console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        console.log(`⏳ Waiting ${waitTime / 1000}s before retry...`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
     }
   };
@@ -125,26 +129,41 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
      EMAIL CONTENT
   ========================== */
 
+  const formatExamName = (examKey) => {
+    const examNames = {
+      airNavigation: "Air Navigation",
+      meteorology: "Meteorology",
+      airRegulations: "Air Regulations",
+      technicalGeneral: "Technical General",
+      technicalSpecific: "Technical Specific",
+      compositePaper: "Composite Paper (Meteorology + Navigation)",
+    };
+    return examNames[examKey] || examKey;
+  };
+
   // Format sortie summary if available - ✅ ENHANCED WITH LDG/TO
   let sortieSummary = "";
   if (formData.sortieRows && formData.sortieRows.length > 0) {
-    let totalDayPIC = 0, totalNightPIC = 0, totalIF = 0;
-    let totalNightPICLDG = 0, totalNightPICTO = 0; // ✅ ADDED
-    
-    formData.sortieRows.forEach(row => {
+    let totalDayPIC = 0,
+      totalNightPIC = 0,
+      totalIF = 0;
+    let totalNightPICLDG = 0,
+      totalNightPICTO = 0; // ✅ ADDED
+
+    formData.sortieRows.forEach((row) => {
       const hours = parseInt(row.hours) || 0;
       const minutes = parseInt(row.minutes) || 0;
       const totalTime = hours + minutes / 60;
-      
+
       if (row.typeOfFlight === "Day PIC") totalDayPIC += totalTime;
       if (row.typeOfFlight === "Night PIC") {
         totalNightPIC += totalTime;
         totalNightPICLDG += parseInt(row.ldg) || 0; // ✅ ADDED
-        totalNightPICTO += parseInt(row.to) || 0;   // ✅ ADDED
+        totalNightPICTO += parseInt(row.to) || 0; // ✅ ADDED
       }
       if (row.typeOfFlight === "IF") totalIF += totalTime;
     });
-    
+
     sortieSummary = `
       <div style="background-color: #eff6ff; padding: 15px; border-radius: 8px; margin: 15px 0;">
         <h4 style="color: #1e40af; margin-top: 0;">Last 6 Months Flying Summary</h4>
@@ -164,26 +183,30 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; margin: 15px 0;">
         <h4 style="color: #166534; margin-top: 0;">DGCA Exams Cleared</h4>
         <ul style="margin: 10px 0; padding-left: 20px;">
-          ${formData.dgcaExamDetails.map(exam => {
-            const examName = exam.exam.replace(/([A-Z])/g, " $1").trim();
-            let statusBadge = "";
-            
-            if (exam.validity === "Expired") {
-              statusBadge = '<span style="color: #dc2626; font-weight: bold;">❌ EXPIRED</span>';
-            } else if (exam.validity === "SPL Exam Required") {
-              statusBadge = '<span style="color: #f59e0b; font-weight: bold;">⚠️ SPL EXAM REQUIRED</span>';
-            } else {
-              statusBadge = `<span style="color: #059669;">✅ Valid until ${exam.validity}</span>`;
-            }
-            
-            return `
+          ${formData.dgcaExamDetails
+            .map((exam) => {
+              const examName = formatExamName(exam.exam);
+              let statusBadge = "";
+
+              if (exam.validity === "Expired") {
+                statusBadge =
+                  '<span style="color: #dc2626; font-weight: bold;">❌ EXPIRED</span>';
+              } else if (exam.validity === "SPL Exam Required") {
+                statusBadge =
+                  '<span style="color: #f59e0b; font-weight: bold;">⚠️ SPL EXAM REQUIRED</span>';
+              } else {
+                statusBadge = `<span style="color: #059669;">✅ Valid until ${exam.validity}</span>`;
+              }
+
+              return `
               <li>
                 <strong>${examName}:</strong> 
-                Result Date: ${exam.resultDate || 'N/A'}<br>
+                Result Date: ${exam.resultDate || "N/A"}<br>
                 Status: ${statusBadge}
               </li>
             `;
-          }).join('')}
+            })
+            .join("")}
         </ul>
       </div>
     `;
@@ -235,7 +258,7 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
           </tr>
           <tr>
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;"><strong>License Validity:</strong></td>
-            <td style="padding: 8px; border-bottom: 1px solid #fde68a;">${formData.licenseValidity || 'N/A'}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #fde68a;">${formData.licenseValidity || "N/A"}</td>
           </tr>
           <tr>
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;"><strong>License Endorsement:</strong></td>
@@ -245,12 +268,16 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;"><strong>Total SE Hours:</strong></td>
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;">${formData.totalSEHours}:${formData.totalSEMinutes}</td>
           </tr>
-          ${formData.licenseEndorsement === "SE ME IR" ? `
+          ${
+            formData.licenseEndorsement === "SE ME IR"
+              ? `
           <tr>
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;"><strong>Total ME Hours:</strong></td>
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;">${formData.totalMEHours}:${formData.totalMEMinutes}</td>
           </tr>
-          ` : ''}
+          `
+              : ""
+          }
           <tr>
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;"><strong>Total Hours:</strong></td>
             <td style="padding: 8px; border-bottom: 1px solid #fde68a;">${formData.totalHours}</td>
@@ -261,25 +288,33 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
           </tr>
           <tr>
             <td style="padding: 8px;"><strong>Last Flight Date:</strong></td>
-            <td style="padding: 8px;">${formData.lastFlightDate || 'N/A'}</td>
+            <td style="padding: 8px;">${formData.lastFlightDate || "N/A"}</td>
           </tr>
         </table>
       </div>
       
       ${sortieSummary}
       
-      ${formData.last6MonthsAvailable === "Yes" ? `
+      ${
+        formData.last6MonthsAvailable === "Yes"
+          ? `
       <div style="background-color: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #075985; margin-top: 0;">IR Check & Signal Reception</h3>
-        <p style="margin: 5px 0;"><strong>IR Check Aircraft:</strong> ${formData.irCheckAircraft || 'N/A'}</p>
-        <p style="margin: 5px 0;"><strong>IR Check Date:</strong> ${formData.irCheckDate || 'N/A'}</p>
-        <p style="margin: 5px 0;"><strong>IR Check Validity:</strong> ${formData.irCheckValidity || 'N/A'}</p>
-        ${formData.signalReception === "Yes" ? `
-        <p style="margin: 5px 0;"><strong>Signal Reception Date:</strong> ${formData.signalReceptionDate || 'N/A'}</p>
-        <p style="margin: 5px 0;"><strong>Signal Reception Validity:</strong> ${formData.signalReceptionValidity || 'N/A'}</p>
-        ` : ''}
+        <p style="margin: 5px 0;"><strong>IR Check Aircraft:</strong> ${formData.irCheckAircraft || "N/A"}</p>
+        <p style="margin: 5px 0;"><strong>IR Check Date:</strong> ${formData.irCheckDate || "N/A"}</p>
+        <p style="margin: 5px 0;"><strong>IR Check Validity:</strong> ${formData.irCheckValidity || "N/A"}</p>
+        ${
+          formData.signalReception === "Yes"
+            ? `
+        <p style="margin: 5px 0;"><strong>Signal Reception Date:</strong> ${formData.signalReceptionDate || "N/A"}</p>
+        <p style="margin: 5px 0;"><strong>Signal Reception Validity:</strong> ${formData.signalReceptionValidity || "N/A"}</p>
+        `
+            : ""
+        }
       </div>
-      ` : ''}
+      `
+          : ""
+      }
       
       <div style="background-color: #fdf4ff; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #701a75; margin-top: 0;">PIC Experience</h3>
@@ -292,10 +327,10 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       
       <div style="background-color: #ecfdf5; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #065f46; margin-top: 0;">Medical & Additional Info</h3>
-        <p style="margin: 5px 0;"><strong>Medical Validity:</strong> ${formData.medicalValidity || 'N/A'}</p>
-        <p style="margin: 5px 0;"><strong>RTR Validity:</strong> ${formData.rtrValidity || 'N/A'}</p>
-        <p style="margin: 5px 0;"><strong>Police Verification Date:</strong> ${formData.policeVerificationDate || 'N/A'}</p>
-        <p style="margin: 5px 0;"><strong>Name Change Processed:</strong> ${formData.nameChangeProcessed || 'No'}</p>
+        <p style="margin: 5px 0;"><strong>Medical Validity:</strong> ${formData.medicalValidity || "N/A"}</p>
+        <p style="margin: 5px 0;"><strong>RTR Validity:</strong> ${formData.rtrValidity || "N/A"}</p>
+        <p style="margin: 5px 0;"><strong>Police Verification Date:</strong> ${formData.policeVerificationDate || "N/A"}</p>
+        <p style="margin: 5px 0;"><strong>Name Change Processed:</strong> ${formData.nameChangeProcessed || "No"}</p>
       </div>
       
       <p style="color: #059669; font-weight: bold; margin: 20px 0;">
@@ -303,14 +338,18 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       </p>
       
       <p style="color: #6b7280; margin: 15px 0;">
-        <strong>Submitted:</strong> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+        <strong>Submitted:</strong> ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
       </p>
       
-      ${formData.hearAboutUs ? `
+      ${
+        formData.hearAboutUs
+          ? `
       <p style="color: #6b7280; margin: 5px 0;">
         <strong>How they heard about us:</strong> ${formData.hearAboutUs}
       </p>
-      ` : ''}
+      `
+          : ""
+      }
       
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
       
@@ -325,7 +364,8 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
   const studentEmail = new brevo.SendSmtpEmail();
   studentEmail.sender = { name: FROM_NAME, email: FROM_EMAIL };
   studentEmail.to = [{ email: formData.email, name: formData.fullName }];
-  studentEmail.subject = "Conversion & Recency Application Received – SkyPro Aviation";
+  studentEmail.subject =
+    "Conversion & Recency Application Received – SkyPro Aviation";
   studentEmail.htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="text-align: center; margin-bottom: 30px;">
@@ -358,7 +398,7 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
         <p style="margin: 5px 0;"><strong>License Type:</strong> ${formData.licenseEndorsement}</p>
         <p style="margin: 5px 0;"><strong>Contracting State:</strong> ${formData.contractingState}</p>
         <p style="margin: 5px 0;"><strong>Total Hours:</strong> ${formData.totalHours}</p>
-        <p style="margin: 5px 0;"><strong>Submitted:</strong> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
+        <p style="margin: 5px 0;"><strong>Submitted:</strong> ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</p>
       </div>
       
       <div style="background-color: #dbeafe; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0; border-radius: 4px;">
@@ -387,7 +427,6 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
     </div>
   `;
   studentEmail.attachment = attachments;
-    
 
   /* ==========================
      SEND BOTH EMAILS IN PARALLEL
