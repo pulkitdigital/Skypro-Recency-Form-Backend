@@ -169,8 +169,8 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
         <h4 style="color: #1e40af; margin-top: 0;">Last 6 Months Flying Summary</h4>
         <p style="margin: 5px 0;"><strong>Total Day PIC:</strong> ${Math.floor(totalDayPIC)}h ${Math.round((totalDayPIC % 1) * 60)}m</p>
         <p style="margin: 5px 0;"><strong>Total Night PIC:</strong> ${Math.floor(totalNightPIC)}h ${Math.round((totalNightPIC % 1) * 60)}m</p>
-        <p style="margin: 5px 0;"><strong>Total Night PIC LDG:</strong> ${totalNightPICLDG}</p>
-        <p style="margin: 5px 0;"><strong>Total Night PIC TO:</strong> ${totalNightPICTO}</p>
+        <p style="margin: 5px 0;"><strong>Total Night LDG:</strong> ${totalNightPICLDG}</p>
+        <p style="margin: 5px 0;"><strong>Total Night  TO:</strong> ${totalNightPICTO}</p>
         <p style="margin: 5px 0;"><strong>Total IF:</strong> ${Math.floor(totalIF)}h ${Math.round((totalIF % 1) * 60)}m</p>
       </div>
     `;

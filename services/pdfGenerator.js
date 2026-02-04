@@ -568,7 +568,7 @@ async function generatePDF(formData, uploadedFiles = []) {
         const ifMins = Math.round((totalIF % 1) * 60);
 
         doc.text(
-          `Total Day PIC: ${dayPICHours}h ${dayPICMins}m  |  Total Night PIC: ${nightPICHours}h ${nightPICMins}m  |  Total Night PIC LDG: ${totalNightPICLDG} | Total Night PIC TO: ${totalNightPICTO}`,
+          `Total Day PIC: ${dayPICHours}h ${dayPICMins}m  |  Total Night PIC: ${nightPICHours}h ${nightPICMins}m  |  Total Night LDG: ${totalNightPICLDG} | Total Night TO: ${totalNightPICTO}`,
           60,
           yPosition,
           { width: 475 }
