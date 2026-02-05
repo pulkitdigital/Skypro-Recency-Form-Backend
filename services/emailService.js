@@ -423,7 +423,7 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
         <p style="margin: 5px 0;">
           💬 <a href="wa.link/nvj9u8" 
               target="_blank" 
-              style="color:#25D366; text-decoration:none; font-weight:600;">
+              style="color:#25D366; text-decoration:none; font-weight:500;">
               Connect with us on WhatsApp
             </a>
         </p>
