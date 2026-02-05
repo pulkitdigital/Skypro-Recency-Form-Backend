@@ -132,7 +132,7 @@ async function generatePDF(formData, uploadedFiles = []) {
               value !== undefined && value !== null ? String(value) : "N/A",
               240,
               yPosition,
-              { width: 295 }
+              { width: 295 },
             );
 
           yPosition += label === "Total PIC Cross-Country Experience" ? 32 : 22;
@@ -291,12 +291,12 @@ async function generatePDF(formData, uploadedFiles = []) {
         ["License Validity", formData.licenseValidity],
         ["License Endorsement", formData.licenseEndorsement],
       ];
-      
+
       // ✅ FIX: Add "Attached" status BEFORE calling addSection
       if (isFileUploaded("foreignLicense")) {
         licenseFields.push(["Foreign License", "Attached"]);
       }
-      
+
       addSection("2. LICENSE DETAILS", licenseFields);
 
       // 3. Total Flying Hours
@@ -548,7 +548,7 @@ async function generatePDF(formData, uploadedFiles = []) {
           yPosition = 100;
         }
 
-         doc.rect(50, yPosition, 495, 60).fillAndStroke("#eff6ff", "#2563eb");
+        doc.rect(50, yPosition, 495, 60).fillAndStroke("#eff6ff", "#2563eb");
 
         doc
           .fontSize(11)
@@ -571,17 +571,14 @@ async function generatePDF(formData, uploadedFiles = []) {
           `Total Day PIC: ${dayPICHours}h ${dayPICMins}m  |  Total Night PIC: ${nightPICHours}h ${nightPICMins}m  |  Total Night TO: ${totalNightPICTO}  |  Total Night LDG: ${totalNightPICLDG}`,
           60,
           yPosition,
-          { width: 475 }
+          { width: 475 },
         );
 
         yPosition += 12;
 
-        doc.text(
-          ` Total IF: ${ifHours}h ${ifMins}m`,
-          60,
-          yPosition,
-          { width: 475 }
-        );
+        doc.text(` Total IF: ${ifHours}h ${ifMins}m`, 60, yPosition, {
+          width: 475,
+        });
 
         yPosition += 55;
 
@@ -953,27 +950,94 @@ async function generatePDF(formData, uploadedFiles = []) {
 
       yPosition += 70;
 
-      // OFFICE USE ONLY Section
+      // // OFFICE USE ONLY Section
+      // if (yPosition > 600) {
+      //   doc.addPage();
+      //   addHeaderFooter();
+      //   yPosition = 100;
+      // }
+
+      // yPosition += 40;
+
+      // // Signature Section
+      // doc.fontSize(10).fillColor("#003366").font("Helvetica-Bold");
+
+      // // Student signature box
+      // doc.text("Student Sign:", 60, yPosition);
+      // doc.rect(60, yPosition + 15, 150, 35).stroke("#cccccc");
+
+      // // Date box
+      // doc.text("Date:", 230, yPosition);
+      // doc.rect(230, yPosition + 15, 150, 35).stroke("#cccccc");
+
+      // // Administrative signature box
+      // doc.text("Administrative Sign:", 400, yPosition);
+      // doc.rect(400, yPosition + 15, 145, 35).stroke("#cccccc");
+
+      // // Footer note
+      // yPosition += 65;
+      // doc
+      //   .fontSize(8)
+      //   .fillColor("#666666")
+      //   .font("Helvetica")
+      //   .text(
+      //     "This is a computer-generated document. For any queries, please contact the admission office.",
+      //     50,
+      //     yPosition,
+      //     { width: 495, align: "center" },
+      //   );
+
+      // Signature Section - MOVED BEFORE OFFICE USE
       if (yPosition > 600) {
         doc.addPage();
         addHeaderFooter();
         yPosition = 100;
       }
 
-      yPosition += 40;
+      yPosition += 20;
 
-      // Signature Section
+      // Find uploaded final signature
+      const finalSignatureFile = uploadedFiles.find(
+        (file) => file.fieldname === "finalSignature",
+      );
+
       doc.fontSize(10).fillColor("#003366").font("Helvetica-Bold");
 
       // Student signature box
       doc.text("Student Sign:", 60, yPosition);
       doc.rect(60, yPosition + 15, 150, 35).stroke("#cccccc");
 
-      // Date box
+      // Add uploaded signature if exists
+      if (finalSignatureFile && fs.existsSync(finalSignatureFile.path)) {
+        try {
+          doc.image(finalSignatureFile.path, 65, yPosition + 18, {
+            width: 140,
+            height: 28,
+            align: "center",
+          });
+        } catch (err) {
+          console.error("Error adding final signature:", err);
+        }
+      }
+
+      // Date box with automatic current date
       doc.text("Date:", 230, yPosition);
       doc.rect(230, yPosition + 15, 150, 35).stroke("#cccccc");
 
-      // Administrative signature box
+      // Auto-populate current date
+      const currentDate = new Date().toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      doc
+        .fontSize(10)
+        .fillColor("#1a1a1a")
+        .font("Helvetica")
+        .text(currentDate, 235, yPosition + 27);
+
+      // Administrative signature box (empty)
+      doc.fillColor("#003366").font("Helvetica-Bold");
       doc.text("Administrative Sign:", 400, yPosition);
       doc.rect(400, yPosition + 15, 145, 35).stroke("#cccccc");
 
@@ -989,6 +1053,9 @@ async function generatePDF(formData, uploadedFiles = []) {
           yPosition,
           { width: 495, align: "center" },
         );
+
+      // NOW ADD OFFICE USE ONLY SECTION (if needed)
+      // ... rest of your code ...
 
       // ========================================
       // ADD UPLOADED IMAGE DOCUMENTS (A4 SIZE, NO HEADER/FOOTER)

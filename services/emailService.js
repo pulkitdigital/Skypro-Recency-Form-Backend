@@ -420,6 +420,14 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
         <p style="margin: 5px 0;"><strong>SkyPro Aviation Training Team</strong></p>
         <p style="margin: 5px 0;">📧 ${ADMIN_EMAIL}</p>
         <p style="margin: 5px 0;">📞 +91 8955804726</p>
+        <p style="margin: 5px 0;">
+          💬 <a href="wa.link/nvj9u8" 
+              target="_blank" 
+              style="color:#25D366; text-decoration:none; font-weight:600;">
+              Connect with us on WhatsApp
+            </a>
+        </p>
+
         <p style="margin: 15px 0 5px 0; font-size: 12px; color: #9ca3af;">
           This is an automated confirmation email. Please do not reply to this message.
         </p>
