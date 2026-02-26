@@ -1166,10 +1166,17 @@ async function generatePDF(formData, uploadedFiles = []) {
         .replace(/\s+/g, "-")
         .replace(/[^a-zA-Z0-9-]/g, "");
 
-      // ✅ TWO separate paths: one for form-only, one for merged
+      // ✅ THREE separate paths:
+      //    formPdfPath   → clean form only          (admin attachment 1)
+      //    docsPdfPath   → uploaded documents only  (admin attachment 2)
+      //    mergedPdfPath → form + documents          (student attachment)
       const formPdfPath = path.join(
         uploadDir,
         `${safeName}-${timestamp}-Form-Only.pdf`
+      );
+      const docsPdfPath = path.join(
+        uploadDir,
+        `${safeName}-${timestamp}-Docs-Only.pdf`
       );
       const mergedPdfPath = path.join(
         uploadDir,
@@ -1304,14 +1311,25 @@ async function generatePDF(formData, uploadedFiles = []) {
       /* ── Exam name formatter ── */
       function formatExamName(examKey) {
         const map = {
-          airNavigation: "Air Navigation",
-          meteorology: "Meteorology",
-          airRegulations: "Air Regulations",
+          airNavigation:    "Air Navigation",
+          meteorology:      "Meteorology",
+          airRegulations:   "Air Regulations",
           technicalGeneral: "Technical General",
-          technicalSpecific: "Technical Specific",
-          compositePaper: "Composite Paper",
+          technicalSpecific:"Technical Specific",
+          compositePaper:   "Composite Paper",
+          // ── aliases / legacy keys from frontend ──
+          aviation:         "Aviation Meteorology",
+          aviationMet:      "Aviation Meteorology",
+          aviationMeteor:   "Aviation Meteorology",
+          airLaw:           "Air Regulations",
+          naviation:        "Air Navigation", // common typo guard
         };
-        return map[examKey] || examKey;
+        if (map[examKey]) return map[examKey];
+        // Fallback: convert camelCase → Title Case for any unknown key
+        return examKey
+          .replace(/([A-Z])/g, " $1")
+          .replace(/^./, (s) => s.toUpperCase())
+          .trim();
       }
 
       /* ── File uploaded? ── */
@@ -1977,124 +1995,134 @@ async function generatePDF(formData, uploadedFiles = []) {
 
       stream.on("finish", async () => {
         try {
-          // ✅ formPdfPath is now saved — form only, clean
-
           /* ═══════════════════════════════════════
-             BUILD mergedPdfPath = form + images + uploaded PDFs
-             (this is what student gets)
+             EXCLUDE list — always embedded in form
           ═══════════════════════════════════════ */
+          const EMBED_FIELDS = ["passportPhoto", "studentSignature", "finalSignature"];
 
-          // Step 1: Copy form PDF as base for merging
-          fs.copyFileSync(formPdfPath, mergedPdfPath);
-
-          // Step 2: Append uploaded images
           const imageFiles = uploadedFiles.filter(
             (f) =>
               f.mimetype &&
               f.mimetype.startsWith("image/") &&
-              !["passportPhoto", "studentSignature", "finalSignature"].includes(
-                f.fieldname
-              )
+              !EMBED_FIELDS.includes(f.fieldname)
           );
-
-          // Step 3: Append uploaded PDFs
           const pdfFiles = uploadedFiles.filter(
             (f) =>
               f.mimetype === "application/pdf" &&
-              !["passportPhoto", "studentSignature", "finalSignature"].includes(
-                f.fieldname
-              )
+              !EMBED_FIELDS.includes(f.fieldname)
           );
 
           const hasExtras = imageFiles.length > 0 || pdfFiles.length > 0;
 
-          if (hasExtras) {
-            // Need to re-generate merged with images appended via pdfkit + then merge PDFs
-            // Strategy: use PDFLib to merge everything into mergedPdfPath
-
-            // First handle image files — create a temp PDF with images
-            let imagePagesPdfPath = null;
-
-            if (imageFiles.length > 0) {
-              imagePagesPdfPath = path.join(
-                uploadDir,
-                `${safeName}-${timestamp}-images-temp.pdf`
-              );
-
-              await new Promise((res, rej) => {
-                const imgDoc = new PDFDocument({ size: "A4", margin: 0, autoFirstPage: false });
-                const imgStream = fs.createWriteStream(imagePagesPdfPath);
-                imgDoc.pipe(imgStream);
-
-                imageFiles.forEach((file) => {
-                  if (!fs.existsSync(file.path)) return;
-                  try {
-                    imgDoc.addPage({ size: "A4", margin: 0 });
-                    const img = imgDoc.openImage(file.path);
-                    const pW = 595.28, pH = 841.89;
-                    const imgAR = img.width / img.height;
-                    const pgAR = pW / pH;
-                    let fw, fh, fx, fy;
-                    if (imgAR > pgAR) {
-                      fw = pW; fh = pW / imgAR; fx = 0; fy = (pH - fh) / 2;
-                    } else {
-                      fh = pH; fw = pH * imgAR; fx = (pW - fw) / 2; fy = 0;
-                    }
-                    imgDoc.image(file.path, fx, fy, { width: fw, height: fh });
-                  } catch (e) {
-                    console.error(`Error adding image ${file.originalname}:`, e);
+          /* ── HELPER: build images-only temp PDF ── */
+          async function buildImagesTempPdf() {
+            if (imageFiles.length === 0) return null;
+            const tempPath = path.join(
+              uploadDir,
+              `${safeName}-${timestamp}-images-temp.pdf`
+            );
+            await new Promise((res, rej) => {
+              const imgDoc = new PDFDocument({ size: "A4", margin: 0, autoFirstPage: false });
+              const imgStream = fs.createWriteStream(tempPath);
+              imgDoc.pipe(imgStream);
+              imageFiles.forEach((file) => {
+                if (!fs.existsSync(file.path)) return;
+                try {
+                  imgDoc.addPage({ size: "A4", margin: 0 });
+                  const img = imgDoc.openImage(file.path);
+                  const pW = 595.28, pH = 841.89;
+                  const imgAR = img.width / img.height;
+                  const pgAR = pW / pH;
+                  let fw, fh, fx, fy;
+                  if (imgAR > pgAR) {
+                    fw = pW; fh = pW / imgAR; fx = 0; fy = (pH - fh) / 2;
+                  } else {
+                    fh = pH; fw = pH * imgAR; fx = (pW - fw) / 2; fy = 0;
                   }
-                });
-
-                imgDoc.end();
-                imgStream.on("finish", res);
-                imgStream.on("error", rej);
+                  imgDoc.image(file.path, fx, fy, { width: fw, height: fh });
+                } catch (e) {
+                  console.error(`Error adding image ${file.originalname}:`, e);
+                }
               });
-            }
+              imgDoc.end();
+              imgStream.on("finish", res);
+              imgStream.on("error", rej);
+            });
+            return tempPath;
+          }
 
-            // Now merge everything using PDFLib
-            console.log("📎 Building merged PDF for student...");
-            const mainBytes = fs.readFileSync(mergedPdfPath);
-            const mainDoc = await PDFLib.load(mainBytes);
-
-            // Merge image pages temp PDF
-            if (imagePagesPdfPath && fs.existsSync(imagePagesPdfPath)) {
-              const imgBytes = fs.readFileSync(imagePagesPdfPath);
+          /* ── HELPER: append images-temp + pdfFiles into a PDFLib doc ── */
+          async function appendDocsToPdfLibDoc(pdfLibDoc, imagesTempPath) {
+            if (imagesTempPath && fs.existsSync(imagesTempPath)) {
+              const imgBytes = fs.readFileSync(imagesTempPath);
               const imgDoc2 = await PDFLib.load(imgBytes);
-              const pages = await mainDoc.copyPages(imgDoc2, imgDoc2.getPageIndices());
-              pages.forEach((p) => mainDoc.addPage(p));
-              fs.unlinkSync(imagePagesPdfPath); // cleanup temp
+              const pages = await pdfLibDoc.copyPages(imgDoc2, imgDoc2.getPageIndices());
+              pages.forEach((p) => pdfLibDoc.addPage(p));
             }
-
-            // Merge uploaded PDF files
             for (const pdfFile of pdfFiles) {
               if (!fs.existsSync(pdfFile.path)) continue;
               try {
                 const bytes = fs.readFileSync(pdfFile.path);
                 const upDoc = await PDFLib.load(bytes);
-                const pages = await mainDoc.copyPages(upDoc, upDoc.getPageIndices());
-                pages.forEach((p) => mainDoc.addPage(p));
-                console.log(`✅ Merged into student PDF: ${pdfFile.originalname}`);
+                const pages = await pdfLibDoc.copyPages(upDoc, upDoc.getPageIndices());
+                pages.forEach((p) => pdfLibDoc.addPage(p));
+                console.log(`✅ Appended: ${pdfFile.originalname}`);
               } catch (e) {
-                console.error(`⚠️ Merge failed (${pdfFile.originalname}):`, e.message);
+                console.error(`⚠️ Append failed (${pdfFile.originalname}):`, e.message);
               }
             }
-
-            const mergedBytes = await mainDoc.save();
-            fs.writeFileSync(mergedPdfPath, mergedBytes);
-            console.log(
-              `✅ Student merged PDF: ${mainDoc.getPageCount()} page(s) → ${mergedPdfPath}`
-            );
-          } else {
-            // No extras — mergedPdfPath is same as formPdfPath (already copied)
-            console.log("ℹ️  No uploaded docs to merge. Student PDF = form only.");
           }
 
-          // ✅ Return BOTH paths
-          resolve({ formPdfPath, mergedPdfPath });
+          let finalDocsPdfPath = null;
+
+          if (hasExtras) {
+            // Build images temp PDF once — shared between docsOnly and merged
+            const imagesTempPath = await buildImagesTempPdf();
+
+            /* ── 1. docsPdfPath — documents ONLY (no form) → admin attachment 2 ── */
+            console.log("📎 Building docs-only PDF for admin...");
+            const docsOnlyDoc = await PDFLib.create();
+            await appendDocsToPdfLibDoc(docsOnlyDoc, imagesTempPath);
+
+            if (docsOnlyDoc.getPageCount() > 0) {
+              const docsBytes = await docsOnlyDoc.save();
+              fs.writeFileSync(docsPdfPath, docsBytes);
+              finalDocsPdfPath = docsPdfPath;
+              console.log(
+                `✅ Docs-only PDF: ${docsOnlyDoc.getPageCount()} page(s) → ${docsPdfPath}`
+              );
+            }
+
+            /* ── 2. mergedPdfPath — form + documents → student attachment ── */
+            console.log("📎 Building merged PDF for student...");
+            fs.copyFileSync(formPdfPath, mergedPdfPath);
+            const mergedDoc = await PDFLib.load(fs.readFileSync(mergedPdfPath));
+            await appendDocsToPdfLibDoc(mergedDoc, imagesTempPath);
+            fs.writeFileSync(mergedPdfPath, await mergedDoc.save());
+            console.log(
+              `✅ Merged PDF: ${mergedDoc.getPageCount()} page(s) → ${mergedPdfPath}`
+            );
+
+            // Cleanup images temp
+            if (imagesTempPath && fs.existsSync(imagesTempPath)) {
+              fs.unlinkSync(imagesTempPath);
+            }
+
+          } else {
+            // No uploaded docs — student gets form only, admin gets no attachment 2
+            fs.copyFileSync(formPdfPath, mergedPdfPath);
+            console.log("ℹ️  No uploaded docs. Student PDF = form only.");
+          }
+
+          // ✅ Return all three paths
+          resolve({
+            formPdfPath,                  // admin attachment 1: form only
+            docsPdfPath: finalDocsPdfPath, // admin attachment 2: docs only (null if none)
+            mergedPdfPath,                 // student attachment: form + docs
+          });
 
         } catch (e) {
-          console.error("Error during PDF merge:", e);
+          console.error("Error during PDF build:", e);
           reject(e);
         }
       });

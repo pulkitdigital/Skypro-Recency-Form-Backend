@@ -493,6 +493,7 @@ async function processJob(jobData) {
     // Clean: both generated PDFs + all uploaded temp files
     const filesToClean = [
       pdfResult?.formPdfPath,
+      pdfResult?.docsPdfPath,   // ✅ docs-only PDF for admin
       pdfResult?.mergedPdfPath,
       ...uploadedFiles.map((f) => f.path),
     ].filter(Boolean);

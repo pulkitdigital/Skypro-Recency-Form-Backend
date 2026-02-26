@@ -558,26 +558,27 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
   ════════════════════════════════════════ */
 
   let formPdfPath = null;
+  let docsPdfPath = null;
   let mergedPdfPath = null;
 
   if (pdfPath && typeof pdfPath === "object") {
-    // New: generatePDF returns { formPdfPath, mergedPdfPath }
-    formPdfPath = pdfPath.formPdfPath;
+    // generatePDF returns { formPdfPath, docsPdfPath, mergedPdfPath }
+    formPdfPath   = pdfPath.formPdfPath;
+    docsPdfPath   = pdfPath.docsPdfPath;   // null if no docs uploaded
     mergedPdfPath = pdfPath.mergedPdfPath;
   } else if (pdfPath && typeof pdfPath === "string") {
-    // Legacy fallback: single path → use as both
-    formPdfPath = pdfPath;
+    // Legacy fallback
+    formPdfPath   = pdfPath;
     mergedPdfPath = pdfPath;
   }
 
   /* ── Admin gets 2 attachments ──
-     1. Form-only PDF    → clean admission form
-     2. Documents PDF    → all uploaded documents merged (if any exist separately)
-        OR merged PDF    → if no separate documents PDF, send merged
+     1. Form-only PDF  → clean admission form (always)
+     2. Docs-only PDF  → uploaded documents only (only if student uploaded files)
   ─────────────────────────────── */
   const adminAttachments = [];
 
-  // Attachment 1: Form-only PDF
+  // Attachment 1: Form-only PDF (always)
   if (formPdfPath && fs.existsSync(formPdfPath)) {
     adminAttachments.push({
       name: `${safeName}-Admission-Form.pdf`,
@@ -586,26 +587,15 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
     console.log("📎 Admin attachment 1: Form-only PDF");
   }
 
-  // Attachment 2: Uploaded documents PDF (mergedPdfPath without form = just docs)
-  // If formPdfPath !== mergedPdfPath → mergedPdfPath has extra pages (docs)
-  // We send mergedPdfPath as "Supporting Documents"
-  if (
-    mergedPdfPath &&
-    fs.existsSync(mergedPdfPath) &&
-    mergedPdfPath !== formPdfPath
-  ) {
+  // Attachment 2: Docs-only PDF (only when student uploaded documents)
+  if (docsPdfPath && fs.existsSync(docsPdfPath)) {
     adminAttachments.push({
       name: `${safeName}-Supporting-Documents.pdf`,
-      content: fs.readFileSync(mergedPdfPath).toString("base64"),
+      content: fs.readFileSync(docsPdfPath).toString("base64"),
     });
-    console.log("📎 Admin attachment 2: Supporting documents PDF");
-  } else if (
-    mergedPdfPath &&
-    fs.existsSync(mergedPdfPath) &&
-    mergedPdfPath === formPdfPath
-  ) {
-    // No separate docs — only 1 attachment for admin too (form only)
-    console.log("ℹ️  No uploaded documents — admin receives 1 attachment only");
+    console.log("📎 Admin attachment 2: Docs-only PDF");
+  } else {
+    console.log("ℹ️  No uploaded documents — admin receives form only");
   }
 
   /* ── Student gets 1 attachment ──
@@ -656,8 +646,19 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
       technicalGeneral: "Technical General",
       technicalSpecific:"Technical Specific",
       compositePaper:   "Composite Paper (Meteorology + Navigation)",
+      // ── aliases / legacy keys from frontend ──
+      aviation:         "Aviation Meteorology",
+      aviationMet:      "Aviation Meteorology",
+      aviationMeteor:   "Aviation Meteorology",
+      airLaw:           "Air Regulations",
+      naviation:        "Air Navigation",
     };
-    return examNames[examKey] || examKey;
+    if (examNames[examKey]) return examNames[examKey];
+    // Fallback: camelCase → Title Case
+    return examKey
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, (s) => s.toUpperCase())
+      .trim();
   };
 
   // Sortie summary
