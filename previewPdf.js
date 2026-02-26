@@ -12,7 +12,7 @@ const completeTestData = {
   passportSize: "Attached",
   foreignLicense: "Attached",
   contractingState: "India",
-  licenseValidity: "27/02/2024",
+  licenseValidity: "Lifetime",
   licenseEndorsement: "SE ME IR",
   totalSEHours: 185,
   totalSEMinutes: 0,
