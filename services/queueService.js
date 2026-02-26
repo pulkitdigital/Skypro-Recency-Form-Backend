@@ -448,20 +448,38 @@ async function processQueue() {
 ================================ */
 async function processJob(jobData) {
   const { formData, uploadedFiles } = jobData;
-  let combinedPdfPath = null;
+
+  // ✅ generatePDF now returns { formPdfPath, mergedPdfPath }
+  let pdfResult = null;
 
   try {
     // 1️⃣  Generate PDF
     console.log("📄 Generating PDF…");
-    combinedPdfPath = await generatePDF(formData, uploadedFiles);
-    if (!combinedPdfPath || !fs.existsSync(combinedPdfPath)) {
-      throw new Error("PDF generation failed – file not found");
-    }
-    console.log(`✅ PDF: ${combinedPdfPath}`);
+    pdfResult = await generatePDF(formData, uploadedFiles);
 
-    // 2️⃣  Send emails
+    // ✅ Validate both paths exist
+    if (!pdfResult || typeof pdfResult !== "object") {
+      throw new Error("PDF generation failed – invalid return value");
+    }
+    const { formPdfPath, mergedPdfPath } = pdfResult;
+
+    if (!formPdfPath || !fs.existsSync(formPdfPath)) {
+      throw new Error("PDF generation failed – form PDF file not found");
+    }
+    if (!mergedPdfPath || !fs.existsSync(mergedPdfPath)) {
+      throw new Error("PDF generation failed – merged PDF file not found");
+    }
+
+    console.log(`✅ Form PDF   : ${formPdfPath}`);
+    console.log(`✅ Merged PDF : ${mergedPdfPath}`);
+
+    // 2️⃣  Send emails (BEFORE cleanup — files must exist for attachment reading)
     console.log("📧 Sending emails…");
-    await sendAdminEmail({ formData, pdfPath: combinedPdfPath, uploadedFiles: [] });
+    await sendAdminEmail({
+      formData,
+      pdfPath: pdfResult,       // ✅ pass the full { formPdfPath, mergedPdfPath } object
+      uploadedFiles: [],         // uploaded files already merged into PDFs
+    });
     console.log("✅ Emails sent");
 
     // 3️⃣  Google Sheet
@@ -469,19 +487,22 @@ async function processJob(jobData) {
     const sheetRow = buildSheetRow(formData, uploadedFiles);
     await appendConversionRow(sheetRow);
     console.log("✅ Sheet updated");
+
   } finally {
-    // Always clean up temp files
+    // ✅ Cleanup AFTER emails are sent
+    // Clean: both generated PDFs + all uploaded temp files
     const filesToClean = [
-      combinedPdfPath,
+      pdfResult?.formPdfPath,
+      pdfResult?.mergedPdfPath,
       ...uploadedFiles.map((f) => f.path),
     ].filter(Boolean);
+
     cleanupFiles(filesToClean);
   }
 }
 
 /* ===============================
    SHEET ROW BUILDER
-   Columns must match your Google Sheet header row exactly.
 ================================ */
 function buildSheetRow(formData, uploadedFiles) {
   /* ── helpers ── */
@@ -545,9 +566,6 @@ function buildSheetRow(formData, uploadedFiles) {
       : "None";
 
   /* ── PIC hours display ── */
-  // Frontend now sends separate Hours/Minutes fields:
-  //   totalPICExperienceHours / totalPICExperienceMinutes
-  //   totalPICCrossCountryHours / totalPICCrossCountryMinutes
   const picExp = `${formData.totalPICExperienceHours || 0}:${String(
     formData.totalPICExperienceMinutes || 0
   ).padStart(2, "0")}`;
@@ -574,8 +592,7 @@ function buildSheetRow(formData, uploadedFiles) {
 
     /* ── SECTION 3: Total Flying Hours ───────────────────── */
     /* L  */ `${formData.totalSEHours || 0}:${String(formData.totalSEMinutes || 0).padStart(2, "0")}`,
-    /* M  */
-    formData.licenseEndorsement === "SE ME IR"
+    /* M  */ formData.licenseEndorsement === "SE ME IR"
       ? `${formData.totalMEHours || 0}:${String(formData.totalMEMinutes || 0).padStart(2, "0")}`
       : "N/A",
     /* N  */ formData.totalHours || "",
@@ -615,7 +632,7 @@ function buildSheetRow(formData, uploadedFiles) {
     /* AN */ fileStatus("crossCountry300Statement"),
     /* AO */ picXC,
     /* AP */ fileStatus("picCrossCountryStatement"),
-    /* AQ */ formData.totalInstrumentTime || "",          // auto-calc HH:MM
+    /* AQ */ formData.totalInstrumentTime || "",
     /* AR */ `${formData.instrumentActualHours || 0}:${String(formData.instrumentActualMinutes || 0).padStart(2, "0")}`,
     /* AS */ `${formData.instrumentSimulatorHours || 0}:${String(formData.instrumentSimulatorMinutes || 0).padStart(2, "0")}`,
     /* AT */ fileStatus("instrumentTimeStatement"),
@@ -650,7 +667,7 @@ function buildSheetRow(formData, uploadedFiles) {
     /* Technical Specific */
     /* BJ */ getExamDetail("technicalSpecific", "resultDate"),
     /* BK */ getExamDetail("technicalSpecific", "validity"),
-    /* BL */ getExamDetail("technicalSpecific", "aircraft"),   // ← new: aircraft field
+    /* BL */ getExamDetail("technicalSpecific", "aircraft"),
     /* BM */ fileStatus("dgcaExam_technicalSpecific"),
 
     /* Composite Paper */
@@ -677,11 +694,11 @@ function buildSheetRow(formData, uploadedFiles) {
     /* CB */ formData.nameChangeProcessed || "",
     /* CC */ fileStatus("nameChangeCertificate"),
 
-    /* ── SECTION 9 / 11: Signatures ──────────────────────── */
+    /* ── Signatures ───────────────────────────────────────── */
     /* CD */ fileStatus("studentSignature"),
     /* CE */ fileStatus("finalSignature"),
 
-    /* ── SECTION 10: Referral ─────────────────────────────── */
+    /* ── Referral ─────────────────────────────────────────── */
     /* CF */ formData.hearAboutUs || "",
   ];
 }
