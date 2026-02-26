@@ -1,3 +1,303 @@
+// require("dotenv").config();
+// const express = require("express");
+// const cors = require("cors");
+// const multer = require("multer");
+// const path = require("path");
+// const fs = require("fs");
+// const axios = require("axios");
+
+// // Services
+// const { addJob, getQueueStatus } = require("./services/queueService");
+
+// const app = express();
+// app.use(cors());
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
+
+// /* ===============================
+//    UPLOAD SETUP
+// ================================ */
+// const uploadDir = path.join(__dirname, "uploads");
+// if (!fs.existsSync(uploadDir)) {
+//   fs.mkdirSync(uploadDir, { recursive: true });
+// }
+
+// const storage = multer.diskStorage({
+//   destination: uploadDir,
+//   filename: (req, file, cb) => {
+//     const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "");
+//     cb(null, `${Date.now()}-${safeName}`);
+//   },
+// });
+
+// const upload = multer({
+//   storage,
+//   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+// });
+
+// /* Fields coming from frontend - CORRECTED */
+// const fields = [
+//   { name: "passportPhoto", maxCount: 1 },
+//   { name: "foreignLicense", maxCount: 1 },
+//   { name: "ca40IR", maxCount: 1 },
+//   { name: "signalReceptionTest", maxCount: 1 },
+//   { name: "c172CheckrideStatement", maxCount: 1 },
+//   { name: "c172FlightReview", maxCount: 1 },
+//   { name: "pic100Statement", maxCount: 1 },
+//   { name: "crossCountry300Statement", maxCount: 1 },
+//   { name: "picCrossCountryStatement", maxCount: 1 },
+//   { name: "instrumentTimeStatement", maxCount: 1 },
+//   { name: "medicalAssessment", maxCount: 1 },
+//   { name: "rtrCertificate", maxCount: 1 }, // ✅ FIXED: was "rtr"
+//   { name: "frtolCertificate", maxCount: 1 }, // ✅ FIXED: was "frtol"
+//   { name: "policeVerification", maxCount: 1 },
+//   { name: "marksheet10", maxCount: 1 },
+//   { name: "marksheet12", maxCount: 1 },
+//   { name: "nameChangeCertificate", maxCount: 1 },
+//   { name: "studentSignature", maxCount: 1 },
+//   { name: "finalSignature", maxCount: 1 },
+// ];
+
+// // Dynamic DGCA exam fields
+// for (let i = 0; i < 10; i++) {
+//   fields.push({ name: `dgcaExam_airNavigation`, maxCount: 1 });
+//   fields.push({ name: `dgcaExam_meteorology`, maxCount: 1 });
+//   fields.push({ name: `dgcaExam_airRegulations`, maxCount: 1 });
+//   fields.push({ name: `dgcaExam_technicalGeneral`, maxCount: 1 });
+//   fields.push({ name: `dgcaExam_technicalSpecific`, maxCount: 1 });
+//   fields.push({ name: `dgcaExam_compositePaper`, maxCount: 1 });
+// }
+
+// /* ===============================
+//    RECAPTCHA VERIFICATION FUNCTION
+// ================================ */
+// async function verifyRecaptcha(token) {
+//   try {
+//     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+    
+//     if (!secretKey) {
+//       console.error("❌ RECAPTCHA_SECRET_KEY not found in environment variables");
+//       return false;
+//     }
+
+//     const response = await axios.post(
+//       "https://www.google.com/recaptcha/api/siteverify",
+//       null,
+//       {
+//         params: {
+//           secret: secretKey,
+//           response: token,
+//         },
+//       }
+//     );
+
+//     console.log("🔐 reCAPTCHA verification response:", response.data);
+
+//     return response.data.success;
+//   } catch (error) {
+//     console.error("❌ reCAPTCHA verification error:", error.message);
+//     return false;
+//   }
+// }
+
+// /* ===============================
+//    SUBMIT ENDPOINT
+// ================================ */
+// app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
+//   try {
+//     console.log("📥 Received conversion form submission");
+
+//     // Extract reCAPTCHA token
+//     const recaptchaToken = req.body.recaptchaToken;
+
+//     if (!recaptchaToken) {
+//       console.warn("⚠️ No reCAPTCHA token provided");
+//       return res.status(400).json({ 
+//         error: "reCAPTCHA verification required. Please complete the captcha." 
+//       });
+//     }
+
+//     // Verify reCAPTCHA
+//     console.log("🔐 Verifying reCAPTCHA...");
+//     const isValidRecaptcha = await verifyRecaptcha(recaptchaToken);
+
+//     if (!isValidRecaptcha) {
+//       console.warn("⚠️ reCAPTCHA verification failed");
+//       return res.status(400).json({ 
+//         error: "reCAPTCHA verification failed. Please try again." 
+//       });
+//     }
+
+//     console.log("✅ reCAPTCHA verification successful");
+
+//     // Process form data
+//     const formData = {
+//       ...req.body,
+//       submittedAt: new Date().toISOString(),
+//     };
+
+//     // Remove recaptchaToken from formData before processing
+//     delete formData.recaptchaToken;
+
+//     // Parse JSON fields
+//     if (formData.dgcaExams && typeof formData.dgcaExams === 'string') {
+//       formData.dgcaExams = JSON.parse(formData.dgcaExams);
+//     }
+    
+//     if (formData.sortieRows && typeof formData.sortieRows === 'string') {
+//       formData.sortieRows = JSON.parse(formData.sortieRows);
+//     }
+    
+//     if (formData.dgcaExamDetails && typeof formData.dgcaExamDetails === 'string') {
+//       formData.dgcaExamDetails = JSON.parse(formData.dgcaExamDetails);
+//     }
+
+//     if (!formData.fullName) {
+//       return res.status(400).json({ error: "Full name required" });
+//     }
+
+//     // Collect uploaded files
+//     const uploadedFiles = Object.values(req.files || {}).flat();
+
+//     console.log("📝 Form data received:", {
+//       fullName: formData.fullName,
+//       email: formData.email,
+//       contractingState: formData.contractingState,
+//       filesCount: uploadedFiles.length,
+//       sortieRowsCount: formData.sortieRows?.length || 0,
+//       dgcaExamsCount: formData.dgcaExamDetails?.length || 0
+//     });
+
+//     // ✅ ENHANCED: Comprehensive required files validation
+//     let requiredFiles = [
+//       'passportPhoto',
+//       'foreignLicense',
+//       'studentSignature',
+//       'finalSignature',
+//       'pic100Statement',
+//       'crossCountry300Statement',
+//       'picCrossCountryStatement',
+//       'instrumentTimeStatement',
+//       'medicalAssessment',
+//       'rtrCertificate', // ✅ FIXED
+//       'frtolCertificate', // ✅ FIXED
+//       'policeVerification',
+//       'marksheet10',
+//       'marksheet12'
+//     ];
+
+//     // Check conditional required files
+//     if (formData.last6MonthsAvailable === "Yes") {
+//       requiredFiles.push('ca40IR');
+//       if (formData.signalReception === "Yes") {
+//         requiredFiles.push('signalReceptionTest');
+//       }
+//     }
+
+//     if (formData.commercialCheckride === "C172") {
+//       requiredFiles.push('c172CheckrideStatement');
+//     } else if (formData.c172PICOption === "flightReview") {
+//       requiredFiles.push('c172FlightReview');
+//     }
+
+//     if (formData.nameChangeProcessed === "Yes") {
+//       requiredFiles.push('nameChangeCertificate');
+//     }
+
+//     // Add DGCA exam file requirements
+//     if (formData.dgcaExamDetails && formData.dgcaExamDetails.length > 0) {
+//       formData.dgcaExamDetails.forEach(exam => {
+//         requiredFiles.push(`dgcaExam_${exam.exam}`);
+//       });
+//     }
+
+//     const missingFiles = requiredFiles.filter(field => 
+//       !uploadedFiles.some(f => f.fieldname === field)
+//     );
+
+//     if (missingFiles.length > 0) {
+//       console.warn("⚠️ Missing required files:", missingFiles);
+//       return res.status(400).json({ 
+//         error: `Please upload all required files: ${missingFiles.join(', ')}` 
+//       });
+//     }
+
+//     // Add job to queue (non-blocking)
+//     const jobId = addJob({
+//       formData,
+//       uploadedFiles,
+//       uploadDir,
+//     });
+
+//     console.log("✅ Job added to queue:", jobId);
+
+//     // INSTANT RESPONSE
+//     res.json({
+//       success: true,
+//       message: "Form submitted successfully! Processing in background.",
+//       jobId: jobId,
+//       info: "You will receive a confirmation email shortly.",
+//     });
+
+//   } catch (err) {
+//     console.error("❌ ERROR:", err);
+//     res.status(500).json({ error: err.message });
+//   }
+// });
+
+// app.get("/", (req, res) => {
+//   res.send("Conversion & Recency Backend started successfully 🚀");
+// });
+
+// /* ===============================
+//    QUEUE STATUS ENDPOINT
+// ================================ */
+// app.get("/api/queue-status", (req, res) => {
+//   res.json(getQueueStatus());
+// });
+
+// /* ===============================
+//    HEALTH CHECK
+// ================================ */
+// app.get("/health", (req, res) => {
+//   res.json({ 
+//     status: "OK",
+//     timestamp: new Date().toISOString()
+//   });
+// });
+
+// /* ===============================
+//    START SERVER
+// ================================ */
+// const PORT = process.env.PORT || 5000;
+// app.listen(PORT, () => {
+//   console.log(`✅ Server running at http://localhost:${PORT}`);
+//   console.log(`📁 Upload directory: ${uploadDir}`);
+//   console.log(`🔐 reCAPTCHA enabled: ${process.env.RECAPTCHA_SECRET_KEY ? 'YES' : 'NO'}`);
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -35,243 +335,289 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
 });
 
-/* Fields coming from frontend - CORRECTED */
+/*
+  ─────────────────────────────────────────────────────────────
+  FIELD MAP  (all names match the frontend's name="…" attrs)
+  ─────────────────────────────────────────────────────────────
+  SECTION 1 – Personal Details
+    passportPhoto        JPG/JPEG   413×531 px
+    studentSignature     JPG/JPEG   300×150 px   (section 9 – Self Declaration)
+    finalSignature       JPG/JPEG   300×150 px   (section 11 – Final Declaration)
+
+  SECTION 2 – License Details
+    foreignLicense       PDF
+
+  SECTION 4 – Last 6 Months  (conditional on last6MonthsAvailable === "Yes")
+    ca40IR               PDF        (conditional on irCheckGiven === "Yes")
+    signalReceptionTest  PDF        (conditional on signalReception === "Yes")
+
+  SECTION 5 – Commercial Checkride
+    c172CheckrideStatement  PDF     (conditional on commercialCheckride === "C172")
+    c172FlightReview        PDF     (conditional on c172PICOption === "flightReview")
+
+  SECTION 6 – PIC Experience
+    pic100Statement           PDF
+    crossCountry300Statement  PDF
+    picCrossCountryStatement  PDF
+    instrumentTimeStatement   PDF
+
+  SECTION 7 – Medical & DGCA Exams
+    medicalAssessment         PDF
+    dgcaExam_airNavigation    PDF   (conditional on checkbox)
+    dgcaExam_meteorology      PDF
+    dgcaExam_airRegulations   PDF
+    dgcaExam_technicalGeneral PDF
+    dgcaExam_technicalSpecific PDF
+    dgcaExam_compositePaper   PDF
+
+  SECTION 8 – Additional Documents
+    rtrCertificate       PDF
+    frtolCertificate     PDF
+    policeVerification   PDF
+    marksheet10          PDF
+    marksheet12          PDF
+    splDocument          PDF        (conditional on hasSPL === "Yes")
+    nameChangeCertificate PDF       (conditional on nameChangeProcessed === "Yes")
+  ─────────────────────────────────────────────────────────────
+*/
+
 const fields = [
-  { name: "passportPhoto", maxCount: 1 },
-  { name: "foreignLicense", maxCount: 1 },
-  { name: "ca40IR", maxCount: 1 },
-  { name: "signalReceptionTest", maxCount: 1 },
+  // Images
+  { name: "passportPhoto",     maxCount: 1 },
+  { name: "studentSignature",  maxCount: 1 },
+  { name: "finalSignature",    maxCount: 1 },
+
+  // License
+  { name: "foreignLicense",    maxCount: 1 },
+
+  // Last 6 months
+  { name: "ca40IR",                maxCount: 1 },
+  { name: "signalReceptionTest",   maxCount: 1 },
+
+  // Checkride
   { name: "c172CheckrideStatement", maxCount: 1 },
-  { name: "c172FlightReview", maxCount: 1 },
-  { name: "pic100Statement", maxCount: 1 },
+  { name: "c172FlightReview",       maxCount: 1 },
+
+  // PIC Experience
+  { name: "pic100Statement",          maxCount: 1 },
   { name: "crossCountry300Statement", maxCount: 1 },
   { name: "picCrossCountryStatement", maxCount: 1 },
-  { name: "instrumentTimeStatement", maxCount: 1 },
+  { name: "instrumentTimeStatement",  maxCount: 1 },
+
+  // Medical
   { name: "medicalAssessment", maxCount: 1 },
-  { name: "rtrCertificate", maxCount: 1 }, // ✅ FIXED: was "rtr"
-  { name: "frtolCertificate", maxCount: 1 }, // ✅ FIXED: was "frtol"
-  { name: "policeVerification", maxCount: 1 },
-  { name: "marksheet10", maxCount: 1 },
-  { name: "marksheet12", maxCount: 1 },
+
+  // DGCA Exams
+  { name: "dgcaExam_airNavigation",    maxCount: 1 },
+  { name: "dgcaExam_meteorology",      maxCount: 1 },
+  { name: "dgcaExam_airRegulations",   maxCount: 1 },
+  { name: "dgcaExam_technicalGeneral", maxCount: 1 },
+  { name: "dgcaExam_technicalSpecific",maxCount: 1 },
+  { name: "dgcaExam_compositePaper",   maxCount: 1 },
+
+  // Additional Documents
+  { name: "rtrCertificate",        maxCount: 1 },
+  { name: "frtolCertificate",      maxCount: 1 },
+  { name: "policeVerification",    maxCount: 1 },
+  { name: "marksheet10",           maxCount: 1 },
+  { name: "marksheet12",           maxCount: 1 },
+  { name: "splDocument",           maxCount: 1 },
   { name: "nameChangeCertificate", maxCount: 1 },
-  { name: "studentSignature", maxCount: 1 },
-  { name: "finalSignature", maxCount: 1 },
 ];
 
-// Dynamic DGCA exam fields
-for (let i = 0; i < 10; i++) {
-  fields.push({ name: `dgcaExam_airNavigation`, maxCount: 1 });
-  fields.push({ name: `dgcaExam_meteorology`, maxCount: 1 });
-  fields.push({ name: `dgcaExam_airRegulations`, maxCount: 1 });
-  fields.push({ name: `dgcaExam_technicalGeneral`, maxCount: 1 });
-  fields.push({ name: `dgcaExam_technicalSpecific`, maxCount: 1 });
-  fields.push({ name: `dgcaExam_compositePaper`, maxCount: 1 });
-}
-
 /* ===============================
-   RECAPTCHA VERIFICATION FUNCTION
+   reCAPTCHA
 ================================ */
 async function verifyRecaptcha(token) {
   try {
     const secretKey = process.env.RECAPTCHA_SECRET_KEY;
-    
     if (!secretKey) {
-      console.error("❌ RECAPTCHA_SECRET_KEY not found in environment variables");
+      console.error("❌ RECAPTCHA_SECRET_KEY not set");
       return false;
     }
-
     const response = await axios.post(
       "https://www.google.com/recaptcha/api/siteverify",
       null,
-      {
-        params: {
-          secret: secretKey,
-          response: token,
-        },
-      }
+      { params: { secret: secretKey, response: token } }
     );
-
-    console.log("🔐 reCAPTCHA verification response:", response.data);
-
+    console.log("🔐 reCAPTCHA response:", response.data);
     return response.data.success;
-  } catch (error) {
-    console.error("❌ reCAPTCHA verification error:", error.message);
+  } catch (err) {
+    console.error("❌ reCAPTCHA error:", err.message);
     return false;
   }
 }
 
 /* ===============================
+   HELPERS
+================================ */
+/**
+ * Build the list of required file field names based on the submitted formData.
+ * Mirrors the exact same logic used in the React frontend's handleSubmit.
+ */
+function getRequiredFiles(formData) {
+  const required = [
+    "passportPhoto",
+    "foreignLicense",
+    "studentSignature",
+    "finalSignature",
+    "pic100Statement",
+    "crossCountry300Statement",
+    "picCrossCountryStatement",
+    "instrumentTimeStatement",
+    "medicalAssessment",
+    "rtrCertificate",
+    "frtolCertificate",
+    "policeVerification",
+    "marksheet10",
+    "marksheet12",
+  ];
+
+  // Section 4 – Last 6 months
+  if (
+    formData.last6MonthsAvailable === "Yes" &&
+    formData.irCheckGiven === "Yes"
+  ) {
+    required.push("ca40IR");
+    if (formData.signalReception === "Yes") {
+      required.push("signalReceptionTest");
+    }
+  }
+
+  // Section 5 – Commercial Checkride
+  if (formData.commercialCheckride === "C172") {
+    required.push("c172CheckrideStatement");
+  } else if (formData.c172PICOption === "flightReview") {
+    required.push("c172FlightReview");
+  }
+
+  // Section 8 – SPL
+  if (formData.hasSPL === "Yes") {
+    required.push("splDocument");
+  }
+
+  // Section 8 – Name Change
+  if (formData.nameChangeProcessed === "Yes") {
+    required.push("nameChangeCertificate");
+  }
+
+  // Section 7 – DGCA Exams (dynamic)
+  if (Array.isArray(formData.dgcaExamDetails)) {
+    formData.dgcaExamDetails.forEach((detail) => {
+      required.push(`dgcaExam_${detail.exam}`);
+    });
+  }
+
+  return required;
+}
+
+/* ===============================
    SUBMIT ENDPOINT
 ================================ */
-app.post("/api/submit-conversion", upload.fields(fields), async (req, res) => {
-  try {
-    console.log("📥 Received conversion form submission");
+app.post(
+  "/api/submit-conversion",
+  upload.fields(fields),
+  async (req, res) => {
+    try {
+      console.log("📥 Received conversion form submission");
 
-    // Extract reCAPTCHA token
-    const recaptchaToken = req.body.recaptchaToken;
-
-    if (!recaptchaToken) {
-      console.warn("⚠️ No reCAPTCHA token provided");
-      return res.status(400).json({ 
-        error: "reCAPTCHA verification required. Please complete the captcha." 
-      });
-    }
-
-    // Verify reCAPTCHA
-    console.log("🔐 Verifying reCAPTCHA...");
-    const isValidRecaptcha = await verifyRecaptcha(recaptchaToken);
-
-    if (!isValidRecaptcha) {
-      console.warn("⚠️ reCAPTCHA verification failed");
-      return res.status(400).json({ 
-        error: "reCAPTCHA verification failed. Please try again." 
-      });
-    }
-
-    console.log("✅ reCAPTCHA verification successful");
-
-    // Process form data
-    const formData = {
-      ...req.body,
-      submittedAt: new Date().toISOString(),
-    };
-
-    // Remove recaptchaToken from formData before processing
-    delete formData.recaptchaToken;
-
-    // Parse JSON fields
-    if (formData.dgcaExams && typeof formData.dgcaExams === 'string') {
-      formData.dgcaExams = JSON.parse(formData.dgcaExams);
-    }
-    
-    if (formData.sortieRows && typeof formData.sortieRows === 'string') {
-      formData.sortieRows = JSON.parse(formData.sortieRows);
-    }
-    
-    if (formData.dgcaExamDetails && typeof formData.dgcaExamDetails === 'string') {
-      formData.dgcaExamDetails = JSON.parse(formData.dgcaExamDetails);
-    }
-
-    if (!formData.fullName) {
-      return res.status(400).json({ error: "Full name required" });
-    }
-
-    // Collect uploaded files
-    const uploadedFiles = Object.values(req.files || {}).flat();
-
-    console.log("📝 Form data received:", {
-      fullName: formData.fullName,
-      email: formData.email,
-      contractingState: formData.contractingState,
-      filesCount: uploadedFiles.length,
-      sortieRowsCount: formData.sortieRows?.length || 0,
-      dgcaExamsCount: formData.dgcaExamDetails?.length || 0
-    });
-
-    // ✅ ENHANCED: Comprehensive required files validation
-    let requiredFiles = [
-      'passportPhoto',
-      'foreignLicense',
-      'studentSignature',
-      'finalSignature',
-      'pic100Statement',
-      'crossCountry300Statement',
-      'picCrossCountryStatement',
-      'instrumentTimeStatement',
-      'medicalAssessment',
-      'rtrCertificate', // ✅ FIXED
-      'frtolCertificate', // ✅ FIXED
-      'policeVerification',
-      'marksheet10',
-      'marksheet12'
-    ];
-
-    // Check conditional required files
-    if (formData.last6MonthsAvailable === "Yes") {
-      requiredFiles.push('ca40IR');
-      if (formData.signalReception === "Yes") {
-        requiredFiles.push('signalReceptionTest');
+      /* ── reCAPTCHA ── */
+      const recaptchaToken = req.body.recaptchaToken;
+      if (!recaptchaToken) {
+        return res.status(400).json({
+          error: "reCAPTCHA verification required. Please complete the captcha.",
+        });
       }
-    }
+      const isValidRecaptcha = await verifyRecaptcha(recaptchaToken);
+      if (!isValidRecaptcha) {
+        return res.status(400).json({
+          error: "reCAPTCHA verification failed. Please try again.",
+        });
+      }
+      console.log("✅ reCAPTCHA OK");
 
-    if (formData.commercialCheckride === "C172") {
-      requiredFiles.push('c172CheckrideStatement');
-    } else if (formData.c172PICOption === "flightReview") {
-      requiredFiles.push('c172FlightReview');
-    }
+      /* ── Parse formData ── */
+      const formData = { ...req.body, submittedAt: new Date().toISOString() };
+      delete formData.recaptchaToken;
 
-    if (formData.nameChangeProcessed === "Yes") {
-      requiredFiles.push('nameChangeCertificate');
-    }
-
-    // Add DGCA exam file requirements
-    if (formData.dgcaExamDetails && formData.dgcaExamDetails.length > 0) {
-      formData.dgcaExamDetails.forEach(exam => {
-        requiredFiles.push(`dgcaExam_${exam.exam}`);
+      // Parse JSON fields sent as strings
+      ["dgcaExams", "sortieRows", "dgcaExamDetails"].forEach((key) => {
+        if (formData[key] && typeof formData[key] === "string") {
+          try {
+            formData[key] = JSON.parse(formData[key]);
+          } catch {
+            formData[key] = [];
+          }
+        }
       });
-    }
 
-    const missingFiles = requiredFiles.filter(field => 
-      !uploadedFiles.some(f => f.fieldname === field)
-    );
+      if (!formData.fullName) {
+        return res.status(400).json({ error: "Full name is required." });
+      }
 
-    if (missingFiles.length > 0) {
-      console.warn("⚠️ Missing required files:", missingFiles);
-      return res.status(400).json({ 
-        error: `Please upload all required files: ${missingFiles.join(', ')}` 
+      /* ── Collect uploaded files ── */
+      const uploadedFiles = Object.values(req.files || {}).flat();
+
+      console.log("📝 Submission:", {
+        fullName: formData.fullName,
+        email: formData.email,
+        filesCount: uploadedFiles.length,
+        sortieRows: formData.sortieRows?.length || 0,
+        dgcaExamDetails: formData.dgcaExamDetails?.length || 0,
       });
+
+      /* ── Required-files validation (mirrors frontend) ── */
+      const requiredFiles = getRequiredFiles(formData);
+      const uploadedFieldNames = uploadedFiles.map((f) => f.fieldname);
+      const missingFiles = requiredFiles.filter(
+        (field) => !uploadedFieldNames.includes(field)
+      );
+
+      if (missingFiles.length > 0) {
+        console.warn("⚠️ Missing files:", missingFiles);
+        return res.status(400).json({
+          error: `Missing required files: ${missingFiles.join(", ")}`,
+        });
+      }
+
+      /* ── Enqueue job (non-blocking) ── */
+      const jobId = addJob({ formData, uploadedFiles, uploadDir });
+      console.log("✅ Job queued:", jobId);
+
+      return res.json({
+        success: true,
+        message: "Form submitted successfully! Processing in background.",
+        jobId,
+        info: "You will receive a confirmation email shortly.",
+      });
+    } catch (err) {
+      console.error("❌ Submit error:", err);
+      return res.status(500).json({ error: err.message });
     }
-
-    // Add job to queue (non-blocking)
-    const jobId = addJob({
-      formData,
-      uploadedFiles,
-      uploadDir,
-    });
-
-    console.log("✅ Job added to queue:", jobId);
-
-    // INSTANT RESPONSE
-    res.json({
-      success: true,
-      message: "Form submitted successfully! Processing in background.",
-      jobId: jobId,
-      info: "You will receive a confirmation email shortly.",
-    });
-
-  } catch (err) {
-    console.error("❌ ERROR:", err);
-    res.status(500).json({ error: err.message });
   }
-});
-
-app.get("/", (req, res) => {
-  res.send("Conversion & Recency Backend started successfully 🚀");
-});
+);
 
 /* ===============================
-   QUEUE STATUS ENDPOINT
+   OTHER ROUTES
 ================================ */
-app.get("/api/queue-status", (req, res) => {
-  res.json(getQueueStatus());
-});
+app.get("/", (_req, res) =>
+  res.send("Conversion & Recency Backend started successfully 🚀")
+);
+
+app.get("/api/queue-status", (_req, res) => res.json(getQueueStatus()));
+
+app.get("/health", (_req, res) =>
+  res.json({ status: "OK", timestamp: new Date().toISOString() })
+);
 
 /* ===============================
-   HEALTH CHECK
-================================ */
-app.get("/health", (req, res) => {
-  res.json({ 
-    status: "OK",
-    timestamp: new Date().toISOString()
-  });
-});
-
-/* ===============================
-   START SERVER
+   START
 ================================ */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
-  console.log(`📁 Upload directory: ${uploadDir}`);
-  console.log(`🔐 reCAPTCHA enabled: ${process.env.RECAPTCHA_SECRET_KEY ? 'YES' : 'NO'}`);
+  console.log(`📁 Upload dir: ${uploadDir}`);
+  console.log(
+    `🔐 reCAPTCHA: ${process.env.RECAPTCHA_SECRET_KEY ? "ENABLED" : "DISABLED ⚠️"}`
+  );
 });
