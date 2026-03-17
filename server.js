@@ -426,26 +426,12 @@ const fields = [
 ];
 
 /* ===============================
-   reCAPTCHA
+   reCAPTCHA (DISABLED)
 ================================ */
 async function verifyRecaptcha(token) {
-  try {
-    const secretKey = process.env.RECAPTCHA_SECRET_KEY;
-    if (!secretKey) {
-      console.error("❌ RECAPTCHA_SECRET_KEY not set");
-      return false;
-    }
-    const response = await axios.post(
-      "https://www.google.com/recaptcha/api/siteverify",
-      null,
-      { params: { secret: secretKey, response: token } }
-    );
-    console.log("🔐 reCAPTCHA response:", response.data);
-    return response.data.success;
-  } catch (err) {
-    console.error("❌ reCAPTCHA error:", err.message);
-    return false;
-  }
+  // reCAPTCHA checks disabled for local/dev execution.
+  console.log("⚠️ reCAPTCHA disabled; skipping verification.");
+  return true;
 }
 
 /* ===============================
@@ -521,20 +507,20 @@ app.post(
     try {
       console.log("📥 Received conversion form submission");
 
-      /* ── reCAPTCHA ── */
-      const recaptchaToken = req.body.recaptchaToken;
-      if (!recaptchaToken) {
-        return res.status(400).json({
-          error: "reCAPTCHA verification required. Please complete the captcha.",
-        });
-      }
-      const isValidRecaptcha = await verifyRecaptcha(recaptchaToken);
-      if (!isValidRecaptcha) {
-        return res.status(400).json({
-          error: "reCAPTCHA verification failed. Please try again.",
-        });
-      }
-      console.log("✅ reCAPTCHA OK");
+      /* ── reCAPTCHA DISABLED ── */
+      // const recaptchaToken = req.body.recaptchaToken;
+      // if (!recaptchaToken) {
+      //   return res.status(400).json({
+      //     error: "reCAPTCHA verification required. Please complete the captcha.",
+      //   });
+      // }
+      // const isValidRecaptcha = await verifyRecaptcha(recaptchaToken);
+      // if (!isValidRecaptcha) {
+      //   return res.status(400).json({
+      //     error: "reCAPTCHA verification failed. Please try again.",
+      //   });
+      // }
+      // console.log("✅ reCAPTCHA OK");
 
       /* ── Parse formData ── */
       const formData = { ...req.body, submittedAt: new Date().toISOString() };
