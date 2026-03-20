@@ -619,6 +619,10 @@ async function sendAdminEmail({ formData, pdfPath, uploadedFiles = [] }) {
     throw new Error("❌ MAIL_FROM or ADMIN_EMAIL missing in .env");
   }
 
+  // ── Fix: combine split HH:MM fields ──
+  formData.totalPICExperience = `${formData.totalPICExperienceHours || "0"}:${String(formData.totalPICExperienceMinutes || "0").padStart(2, "0")}`;
+  formData.totalPICCrossCountry = `${formData.totalPICCrossCountryHours || "0"}:${String(formData.totalPICCrossCountryMinutes || "0").padStart(2, "0")}`;
+
   /* ── Parse pdfPath ── */
   let formPdfPath = null;
   let docsPdfPath = null;
