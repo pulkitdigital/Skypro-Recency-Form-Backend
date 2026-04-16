@@ -419,7 +419,6 @@
 
 
 // services/queueService.js  ─  race-condition-free job queue
-
 const generatePDF = require("./pdfGenerator");
 const sendAdminEmail = require("./emailService");
 const { appendConversionRow } = require("./googleService");
@@ -629,6 +628,8 @@ function buildSheetRow(formData, uploadedFiles) {
     totalNightPICTO = 0;
 
   (formData.sortieRows || []).forEach((row) => {
+    if (row.validity === "OUT OF RECENCY") return;
+    
     const h = parseInt(row.hours) || 0;
     const m = parseInt(row.minutes) || 0;
     const t = h + m / 60;

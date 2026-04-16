@@ -1570,6 +1570,8 @@ async function generatePDF(formData, uploadedFiles = []) {
 
           yPosition += rH;
 
+           if (row.validity === "OUT OF RECENCY") return;
+
           const h = parseInt(row.hours) || 0;
           const m = parseInt(row.minutes) || 0;
           const t = h + m / 60;
